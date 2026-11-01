@@ -8,12 +8,23 @@ export type AppDb = BetterSQLite3Database<typeof schema>;
 
 const globalForDb = globalThis as unknown as { __appDb?: AppDb };
 
-function createDb(): AppDb {
-  const sqlite = new Database(path.join(process.cwd(), 'sqlite.db'));
-  sqlite.pragma('journal_mode = WAL');
+function openDb(filename: string): AppDb {
+  const sqlite = new Database(filename);
+  if (filename !== ':memory:') sqlite.pragma('journal_mode = WAL');
   const instance = drizzle(sqlite, { schema });
   migrate(instance, { migrationsFolder: path.join(process.cwd(), 'drizzle') });
   return instance;
+}
+
+/** テスト用に、マイグレーション適用済みの新規インメモリDBを作成する（本番の sqlite.db には触れない）。 */
+export function createTestDb(): AppDb {
+  return openDb(':memory:');
+}
+
+function createDb(): AppDb {
+  // NODE_ENV === 'test' のときは本番DBを汚染しないよう :memory: を使用する
+  const filename = process.env.NODE_ENV === 'test' ? ':memory:' : path.join(process.cwd(), 'sqlite.db');
+  return openDb(filename);
 }
 
 /** DB接続を返す（Node.jsランタイム専用。初回にマイグレーションを自動適用）。 */
