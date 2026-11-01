@@ -6,9 +6,15 @@ export interface NavItem {
 }
 
 export interface TaskPreview {
-  id: string;
+  id: number;
   title: string;
   priority: 'high' | 'medium' | 'low';
   status: 'todo' | 'in_progress' | 'done';
-  dueDate?: string;
+  dueDate: string | null;
+}
+
+export interface CapturePreview {
+  id: number;
+  content: string;
+  createdAt: string;
 }
