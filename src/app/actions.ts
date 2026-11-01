@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createCapture } from '@/services/captureService';
+import { createCapture, deleteCapture } from '@/services/captureService';
 import { createTask, deleteTask, toggleTaskStatus } from '@/services/taskService';
 import type { TaskPreview } from '@/types/portal';
 
@@ -15,6 +15,11 @@ export interface TaskFormState {
   ok: boolean;
   error: string | null;
   nonce: number;
+}
+
+function revalidateNoteViews(): void {
+  revalidatePath('/');
+  revalidatePath('/notes');
 }
 
 function revalidateTaskViews(): void {
@@ -58,6 +63,17 @@ export async function saveCaptureAction(prev: CaptureState, formData: FormData):
     return { ok: false, error: 'メモを入力してください', nonce: prev.nonce + 1 };
   }
   createCapture(content);
-  revalidatePath('/');
+  revalidateNoteViews();
   return { ok: true, error: null, nonce: prev.nonce + 1 };
+}
+
+/** /notes からのノート追加（長文対応）。 */
+export async function createNoteAction(prev: CaptureState, formData: FormData): Promise<CaptureState> {
+  return saveCaptureAction(prev, formData);
+}
+
+export async function deleteNoteAction(id: number): Promise<void> {
+  if (!Number.isInteger(id)) return;
+  deleteCapture(id);
+  revalidateNoteViews();
 }
