@@ -1,12 +1,12 @@
 import NoteDeleteButton from "@/components/notes/NoteDeleteButton";
-import type { CapturePreview } from "@/types/portal";
+import type { ScoredCapture } from "@/types/portal";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 }
 
-export default function NoteList({ notes, searching }: { notes: CapturePreview[]; searching: boolean }) {
+export default function NoteList({ notes, searching }: { notes: ScoredCapture[]; searching: boolean }) {
   if (notes.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-slate-500">
@@ -19,7 +19,14 @@ export default function NoteList({ notes, searching }: { notes: CapturePreview[]
       {notes.map((note) => (
         <li key={note.id} className="flex items-start justify-between gap-3 py-3">
           <div className="min-w-0 flex-1">
-            <p className="whitespace-pre-wrap break-words text-sm text-slate-900">{note.content}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="whitespace-pre-wrap break-words text-sm text-slate-900">{note.content}</p>
+              {searching && typeof note.score === "number" ? (
+                <span className="inline-flex items-center rounded-full border border-indigo-200/80 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                  Relevance: {note.score.toFixed(2)}
+                </span>
+              ) : null}
+            </div>
             <time dateTime={note.createdAt} className="mt-1 block text-xs text-slate-500">
               {formatDate(note.createdAt)}
             </time>

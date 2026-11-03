@@ -1,7 +1,7 @@
 import NoteCreateForm from "@/components/notes/NoteCreateForm";
 import NoteList from "@/components/notes/NoteList";
 import NoteSearchBar from "@/components/notes/NoteSearchBar";
-import { getAllCaptures } from "@/services/captureService";
+import { searchNotes } from "@/services/searchService";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export default async function NotesPage({
 }) {
   const raw = (await searchParams).q;
   const query = typeof raw === "string" ? raw.trim() : "";
-  const notes = getAllCaptures(query);
+  const notes = searchNotes(query);
 
   return (
     <div className="space-y-6">

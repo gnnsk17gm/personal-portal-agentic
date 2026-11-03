@@ -19,6 +19,14 @@ export interface CapturePreview {
   createdAt: string;
 }
 
+export interface ScoredCapture extends CapturePreview {
+  score?: number;
+}
+
+export interface RankedCapture extends CapturePreview {
+  score: number;
+}
+
 export type AgentContextCategory = 'rules' | 'skills' | 'hooks' | 'specs-active' | 'specs-completed' | 'adrs';
 
 export interface AgentContextFile {
