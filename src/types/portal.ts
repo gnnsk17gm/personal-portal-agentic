@@ -35,3 +35,25 @@ export interface AgentContextFile {
   /** サイズ上限を超えたため先頭のみ読み込んだ場合 true */
   truncated: boolean;
 }
+
+export interface ScheduleEvent {
+  id: string;
+  time: string; // 例: "10:00 - 11:00"
+  title: string;
+  category: 'meeting' | 'focus' | 'personal';
+}
+
+export interface AssembledContext {
+  summaryText: string;          // 人間向けの朝の要約文
+  stats: {
+    pendingTasksCount: number;
+    highPriorityCount: number;
+    recentNotesCount: number;
+    todayEventsCount: number;
+  };
+  todayEvents: ScheduleEvent[];
+  markdownPayload: string;      // AI注入用の構造化Markdown
+  charCount: number;
+  estimatedTokens: number;      // 例: Math.ceil(charCount / 3) 等の概算
+  truncated: boolean;           // 予算上限により切り詰めが発生したか
+}
