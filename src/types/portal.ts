@@ -51,6 +51,19 @@ export interface ScheduleEvent {
   category: 'meeting' | 'focus' | 'personal';
 }
 
+export interface EnrichedTask {
+  id: number;
+  title: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'todo' | 'in_progress' | 'done';
+  dueDate: string | null;
+  relevantNotes?: {
+    id: number;
+    content: string;
+    score: number;
+  }[];
+}
+
 export interface AssembledContext {
   summaryText: string;          // 人間向けの朝の要約文
   stats: {
@@ -60,8 +73,10 @@ export interface AssembledContext {
     todayEventsCount: number;
   };
   todayEvents: ScheduleEvent[];
+  enrichedTasks: EnrichedTask[]; // 高優先度タスクと関連ノート（RAG濃縮）
   markdownPayload: string;      // AI注入用の構造化Markdown
   charCount: number;
   estimatedTokens: number;      // 例: Math.ceil(charCount / 3) 等の概算
   truncated: boolean;           // 予算上限により切り詰めが発生したか
 }
+

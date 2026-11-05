@@ -1,8 +1,9 @@
 import { getDb, type AppDb } from '@/db';
 import { getRecentCaptures } from '@/services/captureService';
 import { defaultScheduleProvider, getTodayEvents, type ScheduleProvider } from '@/services/scheduleService';
+import { searchNotes } from '@/services/searchService';
 import { getAllTasks } from '@/services/taskService';
-import type { AssembledContext, ScheduleEvent } from '@/types/portal';
+import type { AssembledContext, EnrichedTask, ScheduleEvent } from '@/types/portal';
 
 export interface AssembleContextOptions {
   /** AIコンテキストに許容する最大文字数（デフォルト: 1500） */
@@ -51,6 +52,22 @@ export function assembleContext(
   const recentNotes = getRecentCaptures(5, db);
   const todayEvents: ScheduleEvent[] = getTodayEvents(scheduleProvider);
 
+  // 1.1 高優先度タスク（上位最大3件）に対するBM25ナレッジ濃縮 (Task-Driven Local RAG)
+  const targetHighTasks = highPriorityTasks.slice(0, 3);
+  const enrichedTasks: EnrichedTask[] = targetHighTasks.map((task) => {
+    const searchResults = searchNotes(task.title, db);
+    const scoredMatches = searchResults.filter((note) => (note.score ?? 0) > 0);
+    const topMatches = scoredMatches.slice(0, 2).map((note) => ({
+      id: note.id,
+      content: note.content,
+      score: note.score ?? 0,
+    }));
+    return {
+      ...task,
+      relevantNotes: topMatches,
+    };
+  });
+
   // 2. 統計情報
   const stats: AssembledContext['stats'] = {
     pendingTasksCount: pendingTasks.length,
@@ -62,7 +79,7 @@ export function assembleContext(
   // 3. 人間向けサマリー文
   const summaryText = generateSummaryText(stats);
 
-  // 4. Markdownペイロードの構築（セクション優先度: タスク → 予定 → ノート）
+  // 4. Markdownペイロードの構築（セクション優先度: タスク → 関連ナレッジ → 予定 → ノート）
   const headerLines: string[] = [
     '# Personal Portal Context',
     '',
@@ -92,6 +109,23 @@ export function assembleContext(
     }
     taskLines.push('');
 
+    // セクション1.5: タスク関連ナレッジ (関連ノートが1件以上あるタスクのみ出力)
+    const tasksWithNotes = enrichedTasks.filter((t) => t.relevantNotes && t.relevantNotes.length > 0);
+    const knowledgeLines: string[] = [];
+    if (tasksWithNotes.length > 0) {
+      knowledgeLines.push('## Priority Tasks with Relevant Knowledge');
+      for (const t of tasksWithNotes) {
+        knowledgeLines.push(`### Task: [${t.priority.toUpperCase()}] ${t.title}`);
+        knowledgeLines.push('- Relevant Knowledge:');
+        for (const note of t.relevantNotes!) {
+          const clean = note.content.replace(/\r?\n/g, ' ').trim();
+          const snippet = clean.length > 80 ? `${clean.slice(0, 80)}...` : clean;
+          knowledgeLines.push(`  - (Score: ${note.score}) ${snippet}`);
+        }
+      }
+      knowledgeLines.push('');
+    }
+
     // セクション2: 本日の予定
     const eventLines: string[] = ["## Today's Schedule"];
     if (todayEvents.length === 0) {
@@ -115,7 +149,7 @@ export function assembleContext(
     }
     noteLines.push('');
 
-    const sections = [taskLines, eventLines, noteLines];
+    const sections = [taskLines, knowledgeLines, eventLines, noteLines];
 
     for (const section of sections) {
       if (truncated) break;
@@ -140,9 +174,11 @@ export function assembleContext(
     summaryText,
     stats,
     todayEvents,
+    enrichedTasks,
     markdownPayload: finalPayload,
     charCount,
     estimatedTokens,
     truncated,
   };
 }
+

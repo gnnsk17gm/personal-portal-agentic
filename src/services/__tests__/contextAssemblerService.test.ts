@@ -113,4 +113,120 @@ describe('contextAssemblerService', () => {
     expect(context.markdownPayload).toContain('- None');
     expect(context.truncated).toBe(false);
   });
+
+  describe('タスク駆動型ローカルRAG濃縮 (Task-Driven Local RAG)', () => {
+    it('高優先度タスクに関連するノートがBM25で抽出され、enrichedTasksとMarkdownに反映される', () => {
+      // ノートを投入
+      createCapture('Drizzle ORMのマイグレーション設定方法とSQLiteの注意点', db);
+      createCapture('全く関係ない週末の買い出しメモ（牛乳、卵）', db);
+      createCapture('Drizzleのスキーマ設計とリレーションベストプラクティス', db);
+
+      // タスク投入
+      createTask({ title: 'Drizzle マイグレーション対応', priority: 'high' }, db);
+
+      const context = assembleContext(undefined, { db, scheduleProvider: mockScheduleProvider });
+
+      expect(context.enrichedTasks).toBeDefined();
+      expect(context.enrichedTasks.length).toBe(1);
+
+      const enriched = context.enrichedTasks[0];
+      expect(enriched.title).toBe('Drizzle マイグレーション対応');
+      expect(enriched.relevantNotes).toBeDefined();
+      expect(enriched.relevantNotes!.length).toBe(2);
+      expect(enriched.relevantNotes![0].content).toContain('Drizzle');
+      expect(enriched.relevantNotes![0].score).toBeGreaterThan(0);
+
+      // Markdownペイロードの検証
+      expect(context.markdownPayload).toContain('## Priority Tasks with Relevant Knowledge');
+      expect(context.markdownPayload).toContain('### Task: [HIGH] Drizzle マイグレーション対応');
+      expect(context.markdownPayload).toContain('Relevant Knowledge:');
+      expect(context.markdownPayload).toContain('- (Score:');
+
+      // 買い出しメモはRelevant Knowledgeセクションには入らない
+      const knowledgeSection = context.markdownPayload
+        .split('## Priority Tasks with Relevant Knowledge')[1]
+        .split("## Today's Schedule")[0];
+      expect(knowledgeSection).not.toContain('買い出しメモ');
+    });
+
+    it('関連ノートが存在しない高優先度タスクはKnowledgeセクションに表示されない', () => {
+      createCapture('Pythonのデータ分析レシピ', db);
+      createTask({ title: 'Next.js App Routerの修正', priority: 'high' }, db);
+
+      const context = assembleContext(undefined, { db, scheduleProvider: mockScheduleProvider });
+
+      expect(context.enrichedTasks.length).toBe(1);
+      expect(context.enrichedTasks[0].relevantNotes).toEqual([]);
+      expect(context.markdownPayload).not.toContain('## Priority Tasks with Relevant Knowledge');
+    });
+
+    it('中・低優先度タスクや完了済みタスクはRAG検索対象外である', () => {
+      createCapture('Dockerコンテナの最適化手法', db);
+
+      const completed = createTask({ title: 'Docker 本番ビルド対応', priority: 'high' }, db);
+      toggleTaskStatus(completed.id, db);
+      createTask({ title: 'Docker 開発環境整備', priority: 'medium' }, db);
+      createTask({ title: 'Docker ドキュメント整理', priority: 'low' }, db);
+
+      const context = assembleContext(undefined, { db, scheduleProvider: mockScheduleProvider });
+
+      // 未完了のhighがないため、enrichedTasksは空
+      expect(context.enrichedTasks).toEqual([]);
+      expect(context.markdownPayload).not.toContain('## Priority Tasks with Relevant Knowledge');
+    });
+
+    it('高優先度タスクが4件以上ある場合は上位3件までを検索対象とする', () => {
+      createCapture('インデックス設計の基礎', db);
+      createTask({ title: 'インデックス最適化 1', priority: 'high' }, db);
+      createTask({ title: 'インデックス最適化 2', priority: 'high' }, db);
+      createTask({ title: 'インデックス最適化 3', priority: 'high' }, db);
+      createTask({ title: 'インデックス最適化 4', priority: 'high' }, db);
+
+      const context = assembleContext(undefined, { db, scheduleProvider: mockScheduleProvider });
+
+      expect(context.enrichedTasks.length).toBe(3);
+    });
+
+    it('各タスクに紐づく関連ノートは最大2件に制限される', () => {
+      createCapture('Drizzle ノート 1', db);
+      createCapture('Drizzle ノート 2', db);
+      createCapture('Drizzle ノート 3', db);
+
+      createTask({ title: 'Drizzle 調査', priority: 'high' }, db);
+
+      const context = assembleContext(undefined, { db, scheduleProvider: mockScheduleProvider });
+      const enriched = context.enrichedTasks[0];
+
+      expect(enriched.relevantNotes!.length).toBe(2);
+    });
+
+    it('ノート本文は改行置換＆80文字に切り詰められてMarkdownに反映される', () => {
+      const longNote = 'Drizzle 調査ノウハウの詳細まとめ:\n' + 'あ'.repeat(120);
+      createCapture(longNote, db);
+
+      createTask({ title: 'Drizzle 調査', priority: 'high' }, db);
+
+      const context = assembleContext(undefined, { db, scheduleProvider: mockScheduleProvider });
+
+      // Markdown内のKnowledgeセクション内で改行がスペース化され、80文字+...に切り詰められていること
+      const knowledgeSection = context.markdownPayload
+        .split('## Priority Tasks with Relevant Knowledge')[1]
+        .split("## Today's Schedule")[0];
+      expect(knowledgeSection).not.toContain('\n' + 'あ'.repeat(120));
+      expect(knowledgeSection).toContain('...');
+    });
+
+    it('文字数予算（maxChars）が小さい場合、関連ナレッジセクションも含めて安全に切り詰められる', () => {
+      createCapture('TypeScript Strictモード設定の勘所', db);
+      createTask({ title: 'TypeScript 設定改善', priority: 'high' }, db);
+
+      // 小さい予算
+      const smallBudget = 250;
+      const context = assembleContext({ maxChars: smallBudget }, { db, scheduleProvider: mockScheduleProvider });
+
+      expect(context.charCount).toBeLessThanOrEqual(smallBudget);
+      expect(context.truncated).toBe(true);
+    });
+  });
 });
+
