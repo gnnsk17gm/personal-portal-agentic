@@ -1,5 +1,7 @@
 import AgentCategorySection from "@/components/agent/AgentCategorySection";
+import McpToolsRegistry from "@/components/agent/McpToolsRegistry";
 import { getAgentContext } from "@/services/agentContextService";
+import { listTools } from "@/services/mcpService";
 import type { AgentContextCategory } from "@/types/portal";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +16,15 @@ const SECTIONS: { category: AgentContextCategory; title: string; description: st
 ];
 
 export default async function AgentPage() {
-  const files = await getAgentContext();
+  const [files, tools] = await Promise.all([
+    getAgentContext(),
+    Promise.resolve(listTools()),
+  ]);
+
   return (
     <div className="space-y-6">
+      <McpToolsRegistry tools={tools} />
+
       {SECTIONS.map((s) => (
         <AgentCategorySection
           key={s.category}
