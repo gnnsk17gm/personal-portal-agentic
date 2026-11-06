@@ -1,10 +1,12 @@
+import type { ReactNode } from 'react';
 import type { McpToolDefinition } from '@/types/mcp';
 
 interface McpToolCardProps {
   tool: McpToolDefinition;
+  children?: ReactNode;
 }
 
-export default function McpToolCard({ tool }: McpToolCardProps) {
+export default function McpToolCard({ tool, children }: McpToolCardProps) {
   const properties = Object.entries(tool.inputSchema.properties);
   const requiredFields = new Set(tool.inputSchema.required ?? []);
 
@@ -83,6 +85,8 @@ export default function McpToolCard({ tool }: McpToolCardProps) {
           {JSON.stringify(tool.inputSchema, null, 2)}
         </pre>
       </details>
+
+      {children}
     </div>
   );
 }

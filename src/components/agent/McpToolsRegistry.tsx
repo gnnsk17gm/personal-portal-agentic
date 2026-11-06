@@ -1,3 +1,4 @@
+import McpInteractiveRunner from '@/components/agent/McpInteractiveRunner';
 import McpToolCard from '@/components/agent/McpToolCard';
 import type { McpToolDefinition } from '@/types/mcp';
 
@@ -28,7 +29,9 @@ export default function McpToolsRegistry({ tools }: McpToolsRegistryProps) {
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
         {tools.map((tool) => (
-          <McpToolCard key={tool.name} tool={tool} />
+          <McpToolCard key={tool.name} tool={tool}>
+            <McpInteractiveRunner tool={tool} />
+          </McpToolCard>
         ))}
       </div>
     </section>
