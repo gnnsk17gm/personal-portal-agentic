@@ -80,3 +80,40 @@ export interface AssembledContext {
   truncated: boolean;           // 予算上限により切り詰めが発生したか
 }
 
+export type AgentRunStatus = 'running' | 'completed' | 'failed';
+export type AgentStepStatus = 'success' | 'error';
+
+export interface AgentRunPreview {
+  id: number;
+  goal: string;
+  status: AgentRunStatus;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface AgentStepPreview {
+  id: number;
+  runId: number;
+  stepName: string;
+  status: AgentStepStatus;
+  detail: string;
+  createdAt: string;
+}
+
+export interface AgentRunDetail extends AgentRunPreview {
+  steps: AgentStepPreview[];
+}
+
+export interface DecomposedTaskCandidate {
+  title: string;
+  priority: 'high' | 'medium' | 'low';
+  dueDate: string | null;
+}
+
+export interface DecompositionResult {
+  run: AgentRunPreview;
+  steps: AgentStepPreview[];
+  createdTasks: TaskPreview[];
+}
+
+

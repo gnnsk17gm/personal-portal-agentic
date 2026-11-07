@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createCapture, deleteCapture } from '@/services/captureService';
 import { createTask, deleteTask, toggleTaskStatus } from '@/services/taskService';
+import { decomposeGoal } from '@/services/taskDecomposerService';
 import type { TaskPreview } from '@/types/portal';
 
 export interface CaptureState {
@@ -16,6 +17,14 @@ export interface TaskFormState {
   error: string | null;
   nonce: number;
 }
+
+export interface DecomposeFormState {
+  ok: boolean;
+  error: string | null;
+  createdCount: number;
+  nonce: number;
+}
+
 
 function revalidateNoteViews(): void {
   revalidatePath('/');
@@ -77,3 +86,30 @@ export async function deleteNoteAction(id: number): Promise<void> {
   deleteCapture(id);
   revalidateNoteViews();
 }
+
+export async function decomposeGoalAction(
+  prev: DecomposeFormState,
+  formData: FormData
+): Promise<DecomposeFormState> {
+  const goal = formData.get('goal');
+  const goalText = typeof goal === 'string' ? goal : '';
+  try {
+    const result = decomposeGoal(goalText);
+    revalidateTaskViews();
+    return {
+      ok: true,
+      error: null,
+      createdCount: result.createdTasks.length,
+      nonce: prev.nonce + 1,
+    };
+  } catch (e) {
+    revalidateTaskViews();
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '目標の分解に失敗しました',
+      createdCount: 0,
+      nonce: prev.nonce + 1,
+    };
+  }
+}
+

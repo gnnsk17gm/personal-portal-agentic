@@ -14,3 +14,21 @@ export const captures = sqliteTable('captures', {
   content: text('content').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+export const agentRuns = sqliteTable('agent_runs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  goal: text('goal').notNull(),
+  status: text('status', { enum: ['running', 'completed', 'failed'] }).notNull().default('running'),
+  createdAt: text('created_at').notNull(),
+  completedAt: text('completed_at'),
+});
+
+export const agentSteps = sqliteTable('agent_steps', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  runId: integer('run_id').notNull(),
+  stepName: text('step_name').notNull(), // 例: "analyze_goal", "retrieve_knowledge", "generate_tasks", "persist_tasks"
+  status: text('status', { enum: ['success', 'error'] }).notNull().default('success'),
+  detail: text('detail').notNull(), // 思考内容や結果サマリー
+  createdAt: text('created_at').notNull(),
+});
+
