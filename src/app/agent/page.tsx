@@ -1,6 +1,11 @@
 import AgentCategorySection from "@/components/agent/AgentCategorySection";
+import AgentObservabilityExplorer from "@/components/agent/AgentObservabilityExplorer";
 import McpToolsRegistry from "@/components/agent/McpToolsRegistry";
 import { getAgentContext } from "@/services/agentContextService";
+import {
+  getAgentSystemMetrics,
+  listAgentRunsWithSteps,
+} from "@/services/agentMetricsService";
 import { listTools } from "@/services/mcpService";
 import type { AgentContextCategory } from "@/types/portal";
 
@@ -16,13 +21,20 @@ const SECTIONS: { category: AgentContextCategory; title: string; description: st
 ];
 
 export default async function AgentPage() {
-  const [files, tools] = await Promise.all([
+  const [files, tools, metrics, runsWithSteps] = await Promise.all([
     getAgentContext(),
     Promise.resolve(listTools()),
+    Promise.resolve(getAgentSystemMetrics()),
+    Promise.resolve(listAgentRunsWithSteps()),
   ]);
 
   return (
     <div className="space-y-6">
+      <AgentObservabilityExplorer
+        metrics={metrics}
+        runsWithSteps={runsWithSteps}
+      />
+
       <McpToolsRegistry tools={tools} />
 
       {SECTIONS.map((s) => (

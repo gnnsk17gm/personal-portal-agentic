@@ -156,6 +156,34 @@ export interface RemediationPlan {
   generatedAt: string;
 }
 
+export interface AgentDailyActivity {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
+export interface AgentSystemMetrics {
+  totalRuns: number;
+  completedRuns: number;
+  failedRuns: number;
+  runningRuns: number;
+  activeSubagents: number;
+  successRate: number; // 0 - 100 (%) 切り捨て
+  roleBreakdown: {
+    researcher: number;
+    planner: number;
+    critic: number;
+    orchestrator: number;
+  };
+  recentActivity: AgentDailyActivity[];
+}
+
+export interface ScenarioResult {
+  injectedCount: number;
+  sweepStatus: HealthStatus;
+  remediationPlanCount: number;
+}
+
+
 
 
 

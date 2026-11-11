@@ -6,7 +6,8 @@ import { createTask, deleteTask, toggleTaskStatus } from '@/services/taskService
 import { decomposeGoal } from '@/services/taskDecomposerService';
 import { runHealthSweep } from '@/services/sweeperService';
 import { generateRemediationPlan, applyRemediations } from '@/services/remediationService';
-import type { TaskPreview } from '@/types/portal';
+import { runDegradationScenario } from '@/services/scenarioService';
+import type { ScenarioResult, TaskPreview } from '@/types/portal';
 
 export interface CaptureState {
   ok: boolean;
@@ -152,5 +153,25 @@ export async function applyRemediationAction(): Promise<{
     };
   }
 }
+
+export async function runScenarioAction(): Promise<{
+  ok: boolean;
+  error: string | null;
+  result?: ScenarioResult;
+}> {
+  try {
+    const result = runDegradationScenario();
+    revalidatePath('/');
+    revalidatePath('/tasks');
+    revalidatePath('/agent');
+    return { ok: true, error: null, result };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'シナリオの実行に失敗しました',
+    };
+  }
+}
+
 
 
