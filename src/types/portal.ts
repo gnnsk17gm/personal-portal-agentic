@@ -142,6 +142,20 @@ export interface SweepReport {
   sweptAt: string;
 }
 
+export interface RemediationAction {
+  taskId: number;
+  taskTitle: string;
+  actionType: 'reschedule' | 'adjust_priority';
+  currentValue: string | null;
+  proposedValue: string;
+  reason: string;
+}
+
+export interface RemediationPlan {
+  actions: RemediationAction[];
+  generatedAt: string;
+}
+
 
 
 

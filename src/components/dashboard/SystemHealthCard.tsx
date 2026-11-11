@@ -1,6 +1,8 @@
-import { Activity, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertCircle, AlertTriangle, CheckCircle2, Wrench, ArrowRight } from 'lucide-react';
 import { getLatestSweepReport } from '@/services/sweeperService';
+import { generateRemediationPlan } from '@/services/remediationService';
 import RunHealthCheckButton from './RunHealthCheckButton';
+import ApplyRemediationButton from './ApplyRemediationButton';
 import type { HealthStatus } from '@/types/portal';
 
 const STATUS_CONFIG: Record<
@@ -26,6 +28,10 @@ const STATUS_CONFIG: Record<
 
 export default function SystemHealthCard() {
   const report = getLatestSweepReport();
+  const remediationPlan = report && report.status !== 'healthy' ? generateRemediationPlan() : null;
+  const showRemediation = Boolean(
+    report && report.status !== 'healthy' && remediationPlan && remediationPlan.actions.length > 0
+  );
 
   return (
     <section className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -35,7 +41,9 @@ export default function SystemHealthCard() {
             <Activity size={18} className="text-indigo-600" aria-hidden="true" />
             System Health & Task Doctor
           </h2>
-          <RunHealthCheckButton />
+          <div className="flex items-center gap-2">
+            <RunHealthCheckButton />
+          </div>
         </div>
 
         {report ? (
@@ -84,7 +92,49 @@ export default function SystemHealthCard() {
               </div>
             </div>
 
-            {report.recommendations.length > 0 && (
+            {/* AI是正提案（Remediation Plan）セクション */}
+            {showRemediation && remediationPlan && (
+              <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 text-xs">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-semibold text-indigo-900">
+                    <Wrench size={14} className="text-indigo-600" aria-hidden="true" />
+                    AI 是正提案（Self-Healing Proposal）
+                  </div>
+                  <ApplyRemediationButton actionCount={remediationPlan.actions.length} />
+                </div>
+                <p className="mb-2 text-[11px] text-indigo-700/80">
+                  以下のタスクに対して、エージェントが自律的に是正プランを策定しました。ワンクリックで安全に適用できます。
+                </p>
+                <div className="space-y-1.5">
+                  {remediationPlan.actions.map((act, idx) => (
+                    <div
+                      key={idx}
+                      className="flex flex-col gap-1 rounded-md border border-indigo-100/70 bg-white p-2 text-slate-700 shadow-2xs sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-slate-900 truncate">
+                          {act.taskTitle}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {act.reason}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs shrink-0 self-start sm:self-center font-mono">
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600 line-through">
+                          {act.currentValue ?? 'none'}
+                        </span>
+                        <ArrowRight size={12} className="text-indigo-500" aria-hidden="true" />
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-semibold text-indigo-700 border border-indigo-200">
+                          {act.proposedValue}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {report.recommendations.length > 0 && !showRemediation && (
               <div className="rounded-lg bg-slate-50/80 p-2.5 text-xs border border-slate-100">
                 <div className="font-medium text-slate-700 mb-1.5">改善推奨アクション:</div>
                 <ul className="space-y-1 text-slate-600 list-disc list-inside">

@@ -5,6 +5,7 @@ import { createCapture, deleteCapture } from '@/services/captureService';
 import { createTask, deleteTask, toggleTaskStatus } from '@/services/taskService';
 import { decomposeGoal } from '@/services/taskDecomposerService';
 import { runHealthSweep } from '@/services/sweeperService';
+import { generateRemediationPlan, applyRemediations } from '@/services/remediationService';
 import type { TaskPreview } from '@/types/portal';
 
 export interface CaptureState {
@@ -123,6 +124,31 @@ export async function runHealthSweepAction(): Promise<{ ok: boolean; error: stri
     return {
       ok: false,
       error: e instanceof Error ? e.message : '診断の実行に失敗しました',
+    };
+  }
+}
+
+export async function applyRemediationAction(): Promise<{
+  ok: boolean;
+  error: string | null;
+  appliedCount: number;
+}> {
+  try {
+    // サーバー側で最新DBからプランを再生成して適用（競合防止）
+    const plan = generateRemediationPlan();
+    const result = applyRemediations(plan);
+    revalidateTaskViews();
+    return {
+      ok: true,
+      error: null,
+      appliedCount: result.appliedCount,
+    };
+  } catch (e) {
+    revalidateTaskViews();
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '是正の適用に失敗しました',
+      appliedCount: 0,
     };
   }
 }
