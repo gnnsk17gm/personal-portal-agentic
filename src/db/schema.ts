@@ -29,6 +29,9 @@ export const agentSteps = sqliteTable('agent_steps', {
   stepName: text('step_name').notNull(), // 例: "analyze_goal", "retrieve_knowledge", "generate_tasks", "persist_tasks"
   status: text('status', { enum: ['success', 'error'] }).notNull().default('success'),
   detail: text('detail').notNull(), // 思考内容や結果サマリー
+  agentRole: text('agent_role', { enum: ['researcher', 'planner', 'critic', 'orchestrator'] })
+    .notNull()
+    .default('orchestrator'),
   createdAt: text('created_at').notNull(),
 });
 

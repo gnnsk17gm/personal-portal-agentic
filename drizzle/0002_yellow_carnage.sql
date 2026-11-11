@@ -1,0 +1,1 @@
+ALTER TABLE `agent_steps` ADD `agent_role` text DEFAULT 'orchestrator' NOT NULL;

@@ -4,11 +4,14 @@ import { agentRuns, agentSteps } from '@/db/schema';
 import { createTask as defaultCreateTask } from '@/services/taskService';
 import { searchNotes as defaultSearchNotes, tokenizeText } from '@/services/searchService';
 import type {
+  AgentRole,
   AgentRunPreview,
   AgentStepPreview,
+  CriticEvaluation,
   DecomposedTaskCandidate,
   DecompositionResult,
   ScoredCapture,
+  SubagentReport,
   TaskPreview,
 } from '@/types/portal';
 
@@ -16,17 +19,29 @@ export interface TaskDecompositionProvider {
   decompose(goal: string, knowledge: ScoredCapture[], now: Date): DecomposedTaskCandidate[];
 }
 
-function formatDate(date: Date): string {
+export function formatDate(date: Date): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
-function addDays(date: Date, days: number): Date {
+export function addDays(date: Date, days: number): Date {
   const result = new Date(date.getTime());
   result.setUTCDate(result.getUTCDate() + days);
   return result;
+}
+
+export function parseDate(dateStr: string | null): Date | null {
+  if (!dateStr) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) return null;
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10) - 1;
+  const day = parseInt(match[3], 10);
+  const date = new Date(Date.UTC(year, month, day));
+  if (isNaN(date.getTime())) return null;
+  return date;
 }
 
 /**
@@ -132,6 +147,134 @@ export class LocalRuleBasedDecomposer implements TaskDecompositionProvider {
   }
 }
 
+export interface ResearcherData {
+  keywords: string[];
+  knowledge: ScoredCapture[];
+  highestScore: number | null;
+}
+
+/**
+ * サブエージェント: Researcher
+ * 目標のトークン解析とBM25ナレッジ検索を行い、関連ナレッジとサマリーを報告する。
+ */
+export function runResearcher(
+  goal: string,
+  deps: {
+    db: AppDb;
+    searchNotesFn?: typeof defaultSearchNotes;
+    maxKnowledgeDocs?: number;
+  }
+): SubagentReport<ResearcherData> {
+  const searchNotesFn = deps.searchNotesFn ?? defaultSearchNotes;
+  const maxKnowledgeDocs = deps.maxKnowledgeDocs ?? 3;
+
+  const keywords = tokenizeText(goal);
+  const searchResults = searchNotesFn(goal, deps.db);
+  const knowledge = searchResults.slice(0, maxKnowledgeDocs);
+  const highestScore = knowledge.length > 0 ? (knowledge[0].score ?? null) : null;
+
+  const scoreText = highestScore !== null ? `, 最高スコア: ${highestScore.toFixed(2)}` : '';
+  const summary = knowledge.length > 0
+    ? `BM25ナレッジ検索完了: ${knowledge.length}件ヒット (最上位ID: ${knowledge[0].id}${scoreText})`
+    : 'BM25ナレッジ検索完了: 関連ノート0件（汎用知識のみで分解します）';
+
+  return {
+    agentRole: 'researcher',
+    summary,
+    data: {
+      keywords,
+      knowledge,
+      highestScore,
+    },
+  };
+}
+
+/**
+ * サブエージェント: Planner
+ * 目標と調査ナレッジをもとに、タスク候補（3〜5件）を立案する。
+ */
+export function runPlanner(
+  goal: string,
+  knowledge: ScoredCapture[],
+  now: Date,
+  decomposer: TaskDecompositionProvider = new LocalRuleBasedDecomposer()
+): SubagentReport<DecomposedTaskCandidate[]> {
+  const candidates = decomposer.decompose(goal, knowledge, now);
+  const summary = `タスク候補${candidates.length}件を立案: [${candidates.map((t) => t.title).join(' / ')}]`;
+
+  return {
+    agentRole: 'planner',
+    summary,
+    data: candidates,
+  };
+}
+
+/**
+ * サブエージェント: Critic (Verifier)
+ * Plannerが立案したタスク候補を検証し、以下の自己修正（Self-Correction）を実行する:
+ * 1. 優先度チェック: 最初のタスクが必ず high であること
+ * 2. 期日チェック: 時系列順（昇順、重複不可）であること。不整合時は直前タスク+1日に再計算
+ */
+export function runCritic(
+  candidates: DecomposedTaskCandidate[],
+  now: Date
+): CriticEvaluation {
+  const adjustmentsMade: string[] = [];
+  const finalTasks: DecomposedTaskCandidate[] = candidates.map((c) => ({ ...c }));
+
+  if (finalTasks.length === 0) {
+    return {
+      approved: true,
+      adjustmentsMade: ['タスク候補が空です'],
+      finalTasks,
+    };
+  }
+
+  // 1. 優先度チェック: 最初のタスクは必ず high
+  if (finalTasks[0].priority !== 'high') {
+    adjustmentsMade.push(
+      `タスク1の優先度を '${finalTasks[0].priority}' から 'high' へ自動補正`
+    );
+    finalTasks[0].priority = 'high';
+  }
+
+  // 2. 期日の時系列整合性チェック
+  let lastDate: Date;
+  const firstParsed = parseDate(finalTasks[0].dueDate);
+  if (!firstParsed) {
+    const defaultFirstDate = addDays(now, 1);
+    finalTasks[0].dueDate = formatDate(defaultFirstDate);
+    lastDate = defaultFirstDate;
+    adjustmentsMade.push(
+      `タスク1の期日を未設定/無効値から '${finalTasks[0].dueDate}' へ補正`
+    );
+  } else {
+    lastDate = firstParsed;
+  }
+
+  for (let i = 1; i < finalTasks.length; i++) {
+    const currentParsed = parseDate(finalTasks[i].dueDate);
+    // 時系列逆転 (currentParsed <= lastDate) または null / 無効日付
+    if (!currentParsed || currentParsed.getTime() <= lastDate.getTime()) {
+      const correctedDate = addDays(lastDate, 1);
+      const newDueDateStr = formatDate(correctedDate);
+      adjustmentsMade.push(
+        `タスク${i + 1}の期日 '${finalTasks[i].dueDate ?? 'null'}' を時系列昇順 '${newDueDateStr}' へ自動補正`
+      );
+      finalTasks[i].dueDate = newDueDateStr;
+      lastDate = correctedDate;
+    } else {
+      lastDate = currentParsed;
+    }
+  }
+
+  return {
+    approved: true,
+    adjustmentsMade,
+    finalTasks,
+  };
+}
+
 export interface DecomposeOptions {
   maxKnowledgeDocs?: number;
 }
@@ -148,6 +291,7 @@ function recordStep(
   db: AppDb,
   runId: number,
   stepName: string,
+  agentRole: AgentRole,
   status: 'success' | 'error',
   detail: string,
   nowIso: string
@@ -157,6 +301,7 @@ function recordStep(
     .values({
       runId,
       stepName,
+      agentRole,
       status,
       detail,
       createdAt: nowIso,
@@ -167,7 +312,7 @@ function recordStep(
 
 /**
  * 抽象的な目標を受け取り、ナレッジを参照しながら具象タスク群に自律分解・登録する。
- * 実行トレース（Run & Steps）をDBに永続化する。
+ * Researcher / Planner / Critic によるマルチエージェント協調オーケストレーションを実行する。
  */
 export function decomposeGoal(
   rawGoal: string,
@@ -205,6 +350,7 @@ export function decomposeGoal(
       db,
       runId,
       'analyze_goal',
+      'researcher',
       'error',
       'バリデーション失敗: 目標を入力してください',
       nowIso
@@ -220,32 +366,45 @@ export function decomposeGoal(
   }
 
   try {
-    // 2. analyze_goal
-    const tokens = tokenizeText(goal);
-    const keywords = tokens.slice(0, 5).join(', ');
-    const analyzeDetail = `目標文の構文解析完了。抽出キーワード: [${keywords || 'なし'}]`;
-    recordedSteps.push(recordStep(db, runId, 'analyze_goal', 'success', analyzeDetail, nowIso));
+    // 2. Researcher: analyze_goal & retrieve_knowledge
+    const researchReport = runResearcher(goal, {
+      db,
+      searchNotesFn,
+      maxKnowledgeDocs,
+    });
 
-    // 3. retrieve_knowledge
-    const searchResults = searchNotesFn(goal, db);
-    const relevantKnowledge = searchResults.slice(0, maxKnowledgeDocs);
-    const retrieveDetail = relevantKnowledge.length > 0
-      ? `BM25ナレッジ検索完了: ${relevantKnowledge.length}件ヒット (最上位ID: ${relevantKnowledge[0].id})`
-      : 'BM25ナレッジ検索完了: 関連ノート0件（汎用知識のみで分解します）';
-    recordedSteps.push(recordStep(db, runId, 'retrieve_knowledge', 'success', retrieveDetail, nowIso));
+    const keywordsStr = researchReport.data.keywords.slice(0, 5).join(', ');
+    const analyzeDetail = `目標文の構文解析完了。抽出キーワード: [${keywordsStr || 'なし'}]`;
+    recordedSteps.push(
+      recordStep(db, runId, 'analyze_goal', 'researcher', 'success', analyzeDetail, nowIso)
+    );
 
-    // 4. generate_tasks
-    const taskCandidates = decomposer.decompose(goal, relevantKnowledge, now);
-    const generateDetail = `タスク候補${taskCandidates.length}件を生成: [${taskCandidates.map((t) => t.title).join(' / ')}]`;
-    recordedSteps.push(recordStep(db, runId, 'generate_tasks', 'success', generateDetail, nowIso));
+    recordedSteps.push(
+      recordStep(db, runId, 'retrieve_knowledge', 'researcher', 'success', researchReport.summary, nowIso)
+    );
 
-    // 5. persist_tasks
+    // 3. Planner: generate_tasks
+    const plannerReport = runPlanner(goal, researchReport.data.knowledge, now, decomposer);
+    recordedSteps.push(
+      recordStep(db, runId, 'generate_tasks', 'planner', 'success', plannerReport.summary, nowIso)
+    );
+
+    // 4. Critic: critic_review
+    const criticEvaluation = runCritic(plannerReport.data, now);
+    const criticDetail = criticEvaluation.adjustmentsMade.length === 0
+      ? 'All checks passed: 期日整合性および優先度配分の検証完了（修正なし）'
+      : `Dates corrected / Adjusted: ${criticEvaluation.adjustmentsMade.join('; ')}`;
+    recordedSteps.push(
+      recordStep(db, runId, 'critic_review', 'critic', 'success', criticDetail, nowIso)
+    );
+
+    // 5. Orchestrator: persist_tasks
     const createdTasks: TaskPreview[] = [];
     try {
       // Drizzle ORM の transaction を使用してアトミックに永続化
       const persistedList = db.transaction((tx) => {
         const persisted: TaskPreview[] = [];
-        for (const candidate of taskCandidates) {
+        for (const candidate of criticEvaluation.finalTasks) {
           const task = createTaskFn(candidate, tx as unknown as AppDb);
           persisted.push(task);
         }
@@ -255,7 +414,15 @@ export function decomposeGoal(
       createdTasks.push(...persistedList);
     } catch (persistErr) {
       const errorMsg = persistErr instanceof Error ? persistErr.message : String(persistErr);
-      recordStep(db, runId, 'persist_tasks', 'error', `タスク登録中にエラー: ${errorMsg}`, nowIso);
+      recordStep(
+        db,
+        runId,
+        'persist_tasks',
+        'orchestrator',
+        'error',
+        `タスク登録中にエラー: ${errorMsg}`,
+        nowIso
+      );
       db.update(agentRuns)
         .set({ status: 'failed', completedAt: nowIso })
         .where(eq(agentRuns.id, runId))
@@ -264,7 +431,9 @@ export function decomposeGoal(
     }
 
     const persistDetail = `${createdTasks.length}件のタスクをデータベースへ永続化完了`;
-    recordedSteps.push(recordStep(db, runId, 'persist_tasks', 'success', persistDetail, nowIso));
+    recordedSteps.push(
+      recordStep(db, runId, 'persist_tasks', 'orchestrator', 'success', persistDetail, nowIso)
+    );
 
     // Run を completed に更新
     const completedAt = new Date().toISOString();
@@ -316,3 +485,4 @@ export function getRunSteps(runId: number, db: AppDb = getDb()): AgentStepPrevie
     .orderBy(asc(agentSteps.id))
     .all();
 }
+

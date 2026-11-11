@@ -1,11 +1,41 @@
 import { Bot, CheckCircle2, AlertCircle, Clock, ChevronDown } from "lucide-react";
-import type { AgentRunPreview, AgentStepPreview } from "@/types/portal";
+import type { AgentRole, AgentRunPreview, AgentStepPreview } from "@/types/portal";
 
 export interface AgentRunTimelineProps {
   runsWithSteps: {
     run: AgentRunPreview;
     steps: AgentStepPreview[];
   }[];
+}
+
+function getRoleBadge(role: AgentRole) {
+  switch (role) {
+    case "researcher":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-600/20">
+          <span>🔍</span> Researcher
+        </span>
+      );
+    case "planner":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20">
+          <span>📐</span> Planner
+        </span>
+      );
+    case "critic":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20">
+          <span>⚖️</span> Critic
+        </span>
+      );
+    case "orchestrator":
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-500/20">
+          <span>🚀</span> Orchestrator
+        </span>
+      );
+  }
 }
 
 function getStatusBadge(status: AgentRunPreview["status"]) {
@@ -76,7 +106,7 @@ export default function AgentRunTimeline({ runsWithSteps }: AgentRunTimelineProp
             </summary>
 
             <div className="mt-3 border-t border-slate-200/60 pt-3">
-              <ol className="relative ml-2 space-y-2 border-l border-slate-200 pl-4 text-xs">
+              <ol className="relative ml-2 space-y-2.5 border-l border-slate-200 pl-4 text-xs">
                 {steps.map((step) => {
                   const isSuccess = step.status === "success";
                   return (
@@ -86,15 +116,18 @@ export default function AgentRunTimeline({ runsWithSteps }: AgentRunTimelineProp
                           isSuccess ? "bg-indigo-600" : "bg-rose-500"
                         }`}
                       />
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono font-medium text-slate-700">
-                          {step.stepName}
-                        </span>
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          {getRoleBadge(step.agentRole)}
+                          <span className="font-mono font-medium text-slate-700">
+                            {step.stepName}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-slate-400">
                           {new Date(step.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-slate-600 leading-relaxed font-sans">
+                      <p className="mt-1 text-slate-600 leading-relaxed font-sans">
                         {step.detail}
                       </p>
                     </li>
@@ -108,4 +141,5 @@ export default function AgentRunTimeline({ runsWithSteps }: AgentRunTimelineProp
     </div>
   );
 }
+
 

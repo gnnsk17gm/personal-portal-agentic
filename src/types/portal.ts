@@ -82,6 +82,7 @@ export interface AssembledContext {
 
 export type AgentRunStatus = 'running' | 'completed' | 'failed';
 export type AgentStepStatus = 'success' | 'error';
+export type AgentRole = 'researcher' | 'planner' | 'critic' | 'orchestrator';
 
 export interface AgentRunPreview {
   id: number;
@@ -97,6 +98,7 @@ export interface AgentStepPreview {
   stepName: string;
   status: AgentStepStatus;
   detail: string;
+  agentRole: AgentRole;
   createdAt: string;
 }
 
@@ -110,10 +112,23 @@ export interface DecomposedTaskCandidate {
   dueDate: string | null;
 }
 
+export interface SubagentReport<T> {
+  agentRole: AgentRole;
+  summary: string;
+  data: T;
+}
+
+export interface CriticEvaluation {
+  approved: boolean;
+  adjustmentsMade: string[];
+  finalTasks: DecomposedTaskCandidate[];
+}
+
 export interface DecompositionResult {
   run: AgentRunPreview;
   steps: AgentStepPreview[];
   createdTasks: TaskPreview[];
 }
+
 
 
