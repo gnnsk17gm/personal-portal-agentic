@@ -1,5 +1,7 @@
 # Personal Portal - Autonomous Agentic Platform
 
+[![Continuous Integration](https://github.com/gnnsk17gm/personal-portal-agentic/actions/workflows/ci.yml/badge.svg)](https://github.com/gnnsk17gm/personal-portal-agentic/actions/workflows/ci.yml)
+
 Google Antigravityをはじめとする最先端AIエージェント環境を統合し、個人の情報・タスク・ナレッジを一元管理する自律型パーソナルポータルです。
 
 本プロジェクトは、単なるWebアプリの開発にとどまらず、**「仕様駆動開発（Spec-Driven Development: SDD）」と「コンテキストエンジニアリング（Rules / Skills / Hooks）」を体系的に実践・検証するアーキテクチャ実証実験**として構築されています。
