@@ -19,7 +19,9 @@ export const metadata: Metadata = {
   description: "ブリーフィング・タスク管理・ナレッジベースを統合するパーソナルポータル",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="ja"
