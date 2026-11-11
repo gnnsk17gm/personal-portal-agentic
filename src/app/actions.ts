@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createCapture, deleteCapture } from '@/services/captureService';
 import { createTask, deleteTask, toggleTaskStatus } from '@/services/taskService';
 import { decomposeGoal } from '@/services/taskDecomposerService';
+import { runHealthSweep } from '@/services/sweeperService';
 import type { TaskPreview } from '@/types/portal';
 
 export interface CaptureState {
@@ -112,4 +113,18 @@ export async function decomposeGoalAction(
     };
   }
 }
+
+export async function runHealthSweepAction(): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    runHealthSweep();
+    revalidatePath('/');
+    return { ok: true, error: null };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '診断の実行に失敗しました',
+    };
+  }
+}
+
 

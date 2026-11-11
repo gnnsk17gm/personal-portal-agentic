@@ -130,5 +130,18 @@ export interface DecompositionResult {
   createdTasks: TaskPreview[];
 }
 
+export type HealthStatus = 'healthy' | 'warning' | 'critical';
+
+export interface SweepReport {
+  status: HealthStatus;
+  summary: string;
+  overdueTasksCount: number;
+  highPriorityPendingCount: number;
+  totalPendingCount: number;
+  recommendations: string[];
+  sweptAt: string;
+}
+
+
 
 
