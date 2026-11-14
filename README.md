@@ -7,7 +7,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript&logoColor=white)
 ![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite-C5F74F?logo=drizzle&logoColor=black)
-![Vitest](https://img.shields.io/badge/Vitest-123_passed-6E9F18?logo=vitest&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-127_passed-6E9F18?logo=vitest&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-JSON--RPC_2.0-7C3AED)
 ![LLM API Cost](https://img.shields.io/badge/LLM_API_Cost-%240%2Fmonth-success)
 
@@ -20,9 +20,10 @@
 3. [定量的開発メトリクス](#-定量的開発メトリクス-engineering-metrics)
 4. [主要機能ハイライト](#-主要機能ハイライト)
 5. [3分間デモ手順](#-3分間デモ手順-interactive-demo-walkthrough)
-6. [ローカルセットアップ](#-ローカルセットアップ-quick-start)
+6. [セットアップ & 起動手順 (Quick Start & Docker)](#-セットアップ--起動手順-quick-start--docker)
 7. [開発プロセス：仕様書と意思決定ログ](#-開発プロセス仕様書と意思決定ログ)
 8. [技術スタック & ディレクトリ構成](#-技術スタック--ディレクトリ構成)
+9. [技術記事 & キャリア・ポートフォリオ資料](#-技術記事--キャリアポートフォリオ資料)
 
 ---
 
@@ -213,7 +214,9 @@ sequenceDiagram
 
 ---
 
-## 🚀 ローカルセットアップ (Quick Start)
+## 🚀 セットアップ & 起動手順 (Quick Start & Docker)
+
+### A. ローカル開発環境 (Node.js)
 
 **前提:** Node.js 24（[`.nvmrc`](.nvmrc) で固定） / npm。APIキー・`.env`・Docker は**一切不要**です。
 
@@ -222,7 +225,7 @@ git clone https://github.com/gnnsk17gm/personal-portal-agentic.git
 cd personal-portal-agentic
 nvm use            # 任意: .nvmrc の Node.js 24 に切替
 npm install
-npm run verify     # ESLint → TypeScript 型検査 → Vitest 全123テスト
+npm run verify     # ESLint → TypeScript 型検査 → Vitest 全テスト
 npm run dev        # http://localhost:3000
 ```
 
@@ -234,9 +237,28 @@ npm run dev        # http://localhost:3000
 | `npm run dev` | 開発サーバー起動 |
 | `npm run verify` | 品質ゲート一括実行（[`verify-all.sh`](.antigravity/hooks/verify-all.sh)） |
 | `npm run test` / `npm run test:run` | Vitest（ウォッチ / 単発） |
-| `npm run build` | 本番ビルド（CI でも検証） |
+| `npm run build` | 本番ビルド（standalone 出力・CI でも検証） |
 | `npm run db:generate` | Drizzle マイグレーション生成 |
 | `npm run db:seed` | サンプルデータ投入 |
+
+### B. 本番用 Docker コンテナ起動 (ワンコマンド)
+
+Docker がインストールされていれば、Node.js などのローカル環境構築なしでワンコマンドで本番 standalone コンテナを起動できます。マルチステージビルドにより非rootユーザー（`nextjs`）で安全に実行され、名前付きボリュームにより SQLite データベースはコンテナ再起動後も永続化されます。
+
+```bash
+# ビルド & バックグラウンド起動
+docker compose up --build -d
+
+# 稼働確認 (http://localhost:3000)
+# ログ確認
+docker compose logs -f
+
+# コンテナ停止
+docker compose down
+```
+
+- **ポート:** `3000:3000`
+- **データ永続化:** ボリューム `portal-data` をコンテナ内 `/app/data` にマウントし、`DATABASE_PATH=/app/data/sqlite.db` として安全に永続化されます。
 
 **Claude Desktop との連携:** [`docs/mcp-claude-desktop-guide.md`](docs/mcp-claude-desktop-guide.md) を参照してください。
 
@@ -287,7 +309,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>🧭 アーキテクチャ判断記録（ADR）一覧（13件）</b></summary>
+<summary><b>🧭 アーキテクチャ判断記録（ADR）一覧（14件）</b></summary>
 
 | # | 意思決定 |
 | --- | --- |
@@ -304,6 +326,7 @@ flowchart LR
 | 0011 | [自己修復エージェントと HITL 承認パターン](docs/adr/0011-self-healing-remediation-and-hitl.md) |
 | 0012 | [Observability Explorer と決定論的シナリオシミュレーター](docs/adr/0012-agent-observability-explorer-and-scenario-runner.md) |
 | 0013 | [GitHub Actions CI と本番ビルド整合性](docs/adr/0013-github-actions-ci-and-production-build.md) |
+| 0014 | [マルチステージ Docker ビルドとボリューム永続化による本番デプロイ構成の採用](docs/adr/0014-production-docker-containerization.md) |
 
 </details>
 
@@ -313,13 +336,13 @@ flowchart LR
 
 | カテゴリ | 採用技術 |
 | --- | --- |
-| **Framework** | Next.js 16（App Router / Server Actions）, React 19 |
+| **Framework** | Next.js 16（App Router / Server Actions / Standalone Output）, React 19 |
 | **Language** | TypeScript（Strict Mode） |
 | **Styling** | Tailwind CSS v4, lucide-react |
 | **Database** | SQLite（better-sqlite3, WAL モード）+ Drizzle ORM / drizzle-kit |
 | **Agent Protocol** | Model Context Protocol（HTTP JSON-RPC 2.0 + Stdio Bridge） |
 | **Testing / Quality** | Vitest, ESLint, `tsc --noEmit` |
-| **CI** | GitHub Actions（Ubuntu / Node.js 24 / npm cache） |
+| **Container & CI** | Docker（Multi-stage build / `node:20-slim`）, docker compose, GitHub Actions |
 | **AI 開発環境** | Google Antigravity（Rules / Skills / Hooks） |
 
 ```text
@@ -328,8 +351,12 @@ flowchart LR
 │   ├── skills/                # 開発手順書（仕様実装・テスト駆動検証）
 │   └── hooks/                 # 自動品質ゲート（verify-all.sh）
 ├── .github/workflows/ci.yml   # GitHub Actions CI
+├── Dockerfile                 # 本番用マルチステージ Dockerfile (deps / builder / runner)
+├── docker-compose.yml         # ワンコマンド起動・ボリューム永続化設定
 ├── docs/
-│   ├── adr/                   # アーキテクチャ判断記録（13件）
+│   ├── adr/                   # アーキテクチャ判断記録（14件）
+│   ├── articles/              # 技術解説記事（Zenn等向け原稿）
+│   ├── career/                # キャリア・職歴要約・ポートフォリオ
 │   └── mcp-claude-desktop-guide.md
 ├── drizzle/                   # DB マイグレーション
 ├── scripts/mcp-bridge.mjs     # MCP Stdio ⇔ HTTP ブリッジ（ゼロ依存）
@@ -345,6 +372,19 @@ flowchart LR
     ├── services/              # ドメインロジック & エージェント（+ __tests__/）
     └── types/                 # 共有型定義
 ```
+
+---
+
+## 📚 技術記事 & キャリア・ポートフォリオ資料
+
+本プロジェクトのアーキテクチャ背景、開発プロセス、およびエンジニアとしての実績・知見をまとめたドキュメント群です。
+
+- **技術解説記事 (Zenn原稿):**
+  - [`docs/articles/zenn-agentic-portal-architecture.md`](docs/articles/zenn-agentic-portal-architecture.md)
+    - 「LLM API課金ゼロで実現する自律型マルチエージェント基盤と仕様駆動開発の実践」
+- **キャリア・ポートフォリオ要約:**
+  - [`docs/career/resume-portfolio-summary.md`](docs/career/resume-portfolio-summary.md)
+    - 本リポジトリにおける設計思想、技術選定の根拠、エンジニアリングメトリクスおよび職歴サマリー
 
 ---
 

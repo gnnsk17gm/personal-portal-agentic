@@ -1,0 +1,18 @@
+services:
+  portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: personal-portal
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/sqlite.db
+    volumes:
+      - portal-data:/app/data
+
+volumes:
+  portal-data:
+
