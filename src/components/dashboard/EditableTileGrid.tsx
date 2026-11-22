@@ -15,11 +15,10 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Plus, RotateCcw } from "lucide-react";
+import { Plus } from "lucide-react";
 import { updateDashboardTilesAction } from "@/app/actions";
 import DashboardTile from "@/components/dashboard/DashboardTile";
 import {
-  DEFAULT_DASHBOARD_TILES,
   addTile,
   getAvailableTilesToAdd,
   isDashboardTileId,
@@ -91,10 +90,6 @@ export default function EditableTileGrid({
     persistTiles(addTile(tiles, id));
   };
 
-  const handleReset = () => {
-    persistTiles([...DEFAULT_DASHBOARD_TILES]);
-  };
-
   const handleDragEnd = (event: DragEndEvent) => {
     suppressNextBackgroundClick();
 
@@ -137,26 +132,8 @@ export default function EditableTileGrid({
   return (
     <div
       onClick={handleBackgroundClick}
-      className={isEditing ? "min-h-[60vh] space-y-4 pb-12" : "space-y-4"}
+      className={isEditing ? "min-h-[60vh] pb-12" : undefined}
     >
-      {isEditing ? (
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-slate-500">
-            ドラッグで並び替え・余白をクリックして編集終了
-          </p>
-          <button
-            type="button"
-            data-tile-surface="true"
-            onClick={handleReset}
-            disabled={isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-xs transition hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
-          >
-            <RotateCcw size={14} aria-hidden="true" />
-            <span>初期配置に戻す</span>
-          </button>
-        </div>
-      ) : null}
-
       {!isEditing && tiles.length === 0 ? (
         <div
           data-tile-surface="true"
@@ -164,7 +141,7 @@ export default function EditableTileGrid({
         >
           <p className="text-sm font-medium text-slate-700">表示中のタイルがありません</p>
           <p className="mt-1 text-xs text-slate-400">
-            下のボタンからタイルを追加するか、初期配置に戻すことができます。
+            下のボタンから表示したいタイルを追加できます。
           </p>
           <button
             type="button"
@@ -185,7 +162,7 @@ export default function EditableTileGrid({
         >
           <SortableContext items={tiles} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {tiles.map((id) => {
+              {tiles.map((id, index) => {
                 const slot = tileSlots[id];
                 if (!slot) return null;
                 return (
@@ -197,6 +174,7 @@ export default function EditableTileGrid({
                     icon={slot.icon}
                     badge={slot.badge}
                     isEditing={isEditing}
+                    jiggleVariant={(index % 3) as 0 | 1 | 2}
                     onEnterEditMode={() => setIsEditing(true)}
                     onRemove={() => handleRemove(id)}
                   >

@@ -22,14 +22,21 @@ interface DashboardTileProps {
   badge?: ReactNode;
   children: ReactNode;
   isEditing?: boolean;
+  jiggleVariant?: 0 | 1 | 2;
   onEnterEditMode?: () => void;
   onRemove?: () => void;
 }
 
+const JIGGLE_CLASS: Record<0 | 1 | 2, string> = {
+  0: "animate-tile-jiggle",
+  1: "animate-tile-jiggle-alt-1",
+  2: "animate-tile-jiggle-alt-2",
+};
+
 /**
  * 3列正方形タイルダッシュボード用の共通タイル枠。
  * - 通常モード: 短押しクリックで href へ遷移、500ms 長押しで編集モードへ移行。
- * - 編集モード: @dnd-kit/sortable によるリアルタイム並び替えと左上の円形「×」削除バッジを提供。
+ * - 編集モード: @dnd-kit/sortable によるリアルタイム並び替え、iPhone風の振動アニメーション、左上の円形「×」削除バッジを提供。
  */
 export default function DashboardTile({
   id,
@@ -39,6 +46,7 @@ export default function DashboardTile({
   badge,
   children,
   isEditing = false,
+  jiggleVariant = 0,
   onEnterEditMode,
   onRemove,
 }: DashboardTileProps) {
@@ -127,6 +135,8 @@ export default function DashboardTile({
       : "flex aspect-square touch-none select-none cursor-grab active:cursor-grabbing flex-col justify-between overflow-hidden rounded-2xl border-2 border-dashed border-indigo-300 bg-white p-5 shadow-sm ring-2 ring-indigo-50 transition-shadow hover:shadow-md"
     : "group flex aspect-square select-none cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md";
 
+  const innerJiggleClass = isEditing && !isDragging ? JIGGLE_CLASS[jiggleVariant] : "";
+
   return (
     <div
       ref={setNodeRef}
@@ -134,81 +144,83 @@ export default function DashboardTile({
       data-tile-surface="true"
       className={wrapperClass}
     >
-      {isEditing ? (
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove?.();
+      <div className={`relative ${innerJiggleClass}`}>
+        {isEditing ? (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove?.();
+            }}
+            aria-label={`${title} を非表示にする`}
+            title="削除（非表示）"
+            className="absolute -top-2.5 -left-2.5 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        ) : null}
+
+        <section
+          {...(isEditing
+            ? { ...attributes, ...listeners }
+            : {
+                onPointerDown: handlePointerDown,
+                onPointerMove: handlePointerMove,
+                onPointerUp: cancelLongPress,
+                onPointerCancel: cancelLongPress,
+              })}
+          onClick={handleTileClick}
+          onClickCapture={handleClickCapture}
+          onContextMenu={(e) => {
+            if (isEditing || timerRef.current !== null) {
+              e.preventDefault();
+            }
           }}
-          aria-label={`${title} を非表示にする`}
-          title="削除（非表示）"
-          className="absolute -top-2.5 -left-2.5 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+          className={sectionClass}
         >
-          <X size={14} aria-hidden="true" />
-        </button>
-      ) : null}
+          <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
+            {isEditing ? (
+              <div className="flex min-w-0 items-center gap-2 text-base font-semibold text-slate-900">
+                {icon}
+                <span className="truncate">{title}</span>
+              </div>
+            ) : (
+              <Link
+                href={href}
+                onClick={(e) => e.stopPropagation()}
+                className="flex min-w-0 items-center gap-2 rounded text-base font-semibold text-slate-900 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+              >
+                {icon}
+                <span className="truncate">{title}</span>
+              </Link>
+            )}
 
-      <section
-        {...(isEditing
-          ? { ...attributes, ...listeners }
-          : {
-              onPointerDown: handlePointerDown,
-              onPointerMove: handlePointerMove,
-              onPointerUp: cancelLongPress,
-              onPointerCancel: cancelLongPress,
-            })}
-        onClick={handleTileClick}
-        onClickCapture={handleClickCapture}
-        onContextMenu={(e) => {
-          if (isEditing || timerRef.current !== null) {
-            e.preventDefault();
-          }
-        }}
-        className={sectionClass}
-      >
-        <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
-          {isEditing ? (
-            <div className="flex min-w-0 items-center gap-2 text-base font-semibold text-slate-900">
-              {icon}
-              <span className="truncate">{title}</span>
-            </div>
-          ) : (
-            <Link
-              href={href}
-              onClick={(e) => e.stopPropagation()}
-              className="flex min-w-0 items-center gap-2 rounded text-base font-semibold text-slate-900 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-            >
-              {icon}
-              <span className="truncate">{title}</span>
-            </Link>
-          )}
+            {!isEditing ? (
+              <div className="flex shrink-0 items-center gap-1.5">
+                {badge}
+                <ArrowUpRight
+                  size={16}
+                  className="text-slate-300 transition-colors group-hover:text-slate-500"
+                  aria-hidden="true"
+                />
+              </div>
+            ) : (
+              badge
+            )}
+          </div>
 
-          {!isEditing ? (
-            <div className="flex shrink-0 items-center gap-1.5">
-              {badge}
-              <ArrowUpRight
-                size={16}
-                className="text-slate-300 transition-colors group-hover:text-slate-500"
-                aria-hidden="true"
-              />
-            </div>
-          ) : (
-            badge
-          )}
-        </div>
-
-        <div
-          className={
-            isEditing
-              ? "pointer-events-none flex min-h-0 flex-1 select-none flex-col justify-between overflow-y-auto opacity-75"
-              : "flex min-h-0 flex-1 flex-col justify-between overflow-y-auto"
-          }
-        >
-          {children}
-        </div>
-      </section>
+          <div
+            className={
+              isEditing
+                ? "pointer-events-none flex min-h-0 flex-1 select-none flex-col justify-between overflow-y-auto opacity-75"
+                : "flex min-h-0 flex-1 flex-col justify-between overflow-y-auto"
+            }
+          >
+            {children}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

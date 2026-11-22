@@ -17,3 +17,35 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
 }
+
+@keyframes tile-jiggle {
+  0% {
+    transform: rotate(-0.65deg);
+  }
+  50% {
+    transform: rotate(0.65deg);
+  }
+  100% {
+    transform: rotate(-0.65deg);
+  }
+}
+
+.animate-tile-jiggle {
+  animation: tile-jiggle 0.28s ease-in-out infinite;
+}
+
+.animate-tile-jiggle-alt-1 {
+  animation: tile-jiggle 0.3s ease-in-out -0.09s infinite;
+}
+
+.animate-tile-jiggle-alt-2 {
+  animation: tile-jiggle 0.27s ease-in-out -0.17s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-tile-jiggle,
+  .animate-tile-jiggle-alt-1,
+  .animate-tile-jiggle-alt-2 {
+    animation: none;
+  }
+}
