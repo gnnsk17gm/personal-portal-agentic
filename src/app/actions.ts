@@ -8,6 +8,13 @@ import {
   parsePortalMode,
   type PortalMode,
 } from '@/lib/portalMode';
+import {
+  DASHBOARD_TILES_COOKIE,
+  DASHBOARD_TILES_MAX_AGE,
+  sanitizeDashboardTiles,
+  serializeDashboardTiles,
+  type DashboardTileId,
+} from '@/lib/dashboardTiles';
 import { createCapture, deleteCapture } from '@/services/captureService';
 import { createTask, deleteTask, toggleTaskStatus } from '@/services/taskService';
 import { decomposeGoal } from '@/services/taskDecomposerService';
@@ -189,6 +196,20 @@ export async function setPortalModeAction(mode: PortalMode): Promise<void> {
     sameSite: 'lax',
   });
   revalidatePath('/', 'layout');
+}
+
+export async function updateDashboardTilesAction(
+  tileIds: DashboardTileId[],
+): Promise<DashboardTileId[]> {
+  const sanitized = sanitizeDashboardTiles(tileIds);
+  const cookieStore = await cookies();
+  cookieStore.set(DASHBOARD_TILES_COOKIE, serializeDashboardTiles(sanitized), {
+    path: '/',
+    maxAge: DASHBOARD_TILES_MAX_AGE,
+    sameSite: 'lax',
+  });
+  revalidatePath('/');
+  return sanitized;
 }
 
 
