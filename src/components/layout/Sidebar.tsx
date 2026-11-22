@@ -1,20 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useTransition } from "react";
 import {
   Bot,
   Brain,
+  Home,
   LayoutDashboard,
   ListChecks,
   Settings,
+  StickyNote,
   type LucideIcon,
 } from "lucide-react";
+import { setPortalModeAction } from "@/app/actions";
+import {
+  DEFAULT_PORTAL_MODE,
+  getNextPortalMode,
+  type PortalMode,
+} from "@/lib/portalMode";
 import type { NavItem } from "@/types/portal";
 
 const ICONS: Record<string, LucideIcon> = {
+  Home,
   LayoutDashboard,
   ListChecks,
+  StickyNote,
   Brain,
   Bot,
   Settings,
@@ -28,8 +39,28 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "settings", label: "Settings", href: "/settings", iconName: "Settings" },
 ];
 
-export default function Sidebar() {
+const STANDARD_NAV_ITEMS: NavItem[] = [
+  { id: "home", label: "Home", href: "/", iconName: "Home" },
+  { id: "tasks", label: "Tasks", href: "/tasks", iconName: "ListChecks" },
+  { id: "notes", label: "Notes", href: "/notes", iconName: "StickyNote" },
+  { id: "settings", label: "Settings", href: "/settings", iconName: "Settings" },
+];
+
+export default function Sidebar({ mode = DEFAULT_PORTAL_MODE }: { mode?: PortalMode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  const items = mode === "portfolio" ? NAV_ITEMS : STANDARD_NAV_ITEMS;
+  const nextMode = getNextPortalMode(mode);
+  const toggleLabel = mode === "portfolio" ? "基本" : "Portfolio";
+
+  const handleToggleMode = () => {
+    startTransition(async () => {
+      await setPortalModeAction(nextMode);
+      router.refresh();
+    });
+  };
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
@@ -37,7 +68,7 @@ export default function Sidebar() {
         Personal Portal
       </div>
       <nav className="flex flex-col gap-1 px-3 py-2" aria-label="メインナビゲーション">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const Icon = ICONS[item.iconName];
           const isActive =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -58,6 +89,17 @@ export default function Sidebar() {
           );
         })}
       </nav>
+      <div className="mt-auto border-t border-slate-100 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={handleToggleMode}
+          disabled={pending}
+          aria-label={mode === "portfolio" ? "基本モードへ切替" : "Portfolioモードへ切替"}
+          className="w-full rounded-md px-2.5 py-1.5 text-left text-xs text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600 disabled:opacity-50"
+        >
+          {pending ? "切替中..." : toggleLabel}
+        </button>
+      </div>
     </aside>
   );
 }

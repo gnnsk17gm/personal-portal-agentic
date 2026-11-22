@@ -1,6 +1,7 @@
 import NoteCreateForm from "@/components/notes/NoteCreateForm";
 import NoteList from "@/components/notes/NoteList";
 import NoteSearchBar from "@/components/notes/NoteSearchBar";
+import { getPortalMode } from "@/lib/portalModeServer";
 import { searchNotes } from "@/services/searchService";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ export default async function NotesPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const raw = (await searchParams).q;
+  const [params, mode] = await Promise.all([searchParams, getPortalMode()]);
+  const raw = params.q;
   const query = typeof raw === "string" ? raw.trim() : "";
   const notes = searchNotes(query);
 
@@ -25,7 +27,7 @@ export default async function NotesPage({
           </h2>
           <NoteSearchBar query={query} />
         </div>
-        <NoteList notes={notes} searching={query.length > 0} />
+        <NoteList notes={notes} searching={query.length > 0} showScore={mode === "portfolio"} />
       </section>
     </div>
   );

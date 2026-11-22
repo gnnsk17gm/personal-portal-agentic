@@ -1,6 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
+import {
+  PORTAL_MODE_COOKIE,
+  PORTAL_MODE_MAX_AGE,
+  parsePortalMode,
+  type PortalMode,
+} from '@/lib/portalMode';
 import { createCapture, deleteCapture } from '@/services/captureService';
 import { createTask, deleteTask, toggleTaskStatus } from '@/services/taskService';
 import { decomposeGoal } from '@/services/taskDecomposerService';
@@ -171,6 +178,17 @@ export async function runScenarioAction(): Promise<{
       error: e instanceof Error ? e.message : 'シナリオの実行に失敗しました',
     };
   }
+}
+
+export async function setPortalModeAction(mode: PortalMode): Promise<void> {
+  const normalized = parsePortalMode(mode);
+  const cookieStore = await cookies();
+  cookieStore.set(PORTAL_MODE_COOKIE, normalized, {
+    path: '/',
+    maxAge: PORTAL_MODE_MAX_AGE,
+    sameSite: 'lax',
+  });
+  revalidatePath('/', 'layout');
 }
 
 

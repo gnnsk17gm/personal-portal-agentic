@@ -3,6 +3,7 @@ import AgentRunTimeline from "@/components/agent/AgentRunTimeline";
 import TaskCreateForm from "@/components/tasks/TaskCreateForm";
 import TaskFilterTabs, { type TaskFilter } from "@/components/tasks/TaskFilterTabs";
 import TaskList from "@/components/tasks/TaskList";
+import { getPortalMode } from "@/lib/portalModeServer";
 import { getAllTasks } from "@/services/taskService";
 import { getRecentRuns, getRunSteps } from "@/services/taskDecomposerService";
 
@@ -17,21 +18,24 @@ export default async function TasksPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const filter = parseFilter((await searchParams).filter);
+  const [params, mode] = await Promise.all([searchParams, getPortalMode()]);
+  const filter = parseFilter(params.filter);
   const all = getAllTasks();
   const tasks = all.filter((t) =>
     filter === "all" ? true : filter === "done" ? t.status === "done" : t.status !== "done",
   );
 
-  const recentRuns = getRecentRuns(5);
-  const runsWithSteps = recentRuns.map((run) => ({
-    run,
-    steps: getRunSteps(run.id),
-  }));
+  const isPortfolio = mode === "portfolio";
+  const runsWithSteps = isPortfolio
+    ? getRecentRuns(5).map((run) => ({
+        run,
+        steps: getRunSteps(run.id),
+      }))
+    : [];
 
   return (
     <div className="space-y-6">
-      <GoalDecompositionForm />
+      {isPortfolio ? <GoalDecompositionForm /> : null}
       <TaskCreateForm />
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -40,7 +44,7 @@ export default async function TasksPage({
         </div>
         <TaskList tasks={tasks} />
       </section>
-      <AgentRunTimeline runsWithSteps={runsWithSteps} />
+      {isPortfolio ? <AgentRunTimeline runsWithSteps={runsWithSteps} /> : null}
     </div>
   );
 }

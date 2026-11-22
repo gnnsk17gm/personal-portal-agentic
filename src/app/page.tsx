@@ -1,11 +1,19 @@
 import BriefingCard from "@/components/dashboard/BriefingCard";
 import PriorityTasksCard from "@/components/dashboard/PriorityTasksCard";
 import QuickCaptureCard from "@/components/dashboard/QuickCaptureCard";
+import StandardHomeGrid from "@/components/dashboard/StandardHomeGrid";
 import SystemHealthCard from "@/components/dashboard/SystemHealthCard";
+import { getPortalMode } from "@/lib/portalModeServer";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
+  const mode = await getPortalMode();
+
+  if (mode === "standard") {
+    return <StandardHomeGrid />;
+  }
+
   return (
     <div className="space-y-6">
       <SystemHealthCard />

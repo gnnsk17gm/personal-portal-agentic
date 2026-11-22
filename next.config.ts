@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  devIndicators: {
+    position: "bottom-right",
+  },
   serverExternalPackages: ["better-sqlite3"],
   turbopack: {
     rules: {
