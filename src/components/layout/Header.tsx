@@ -7,6 +7,7 @@ const PORTFOLIO_PAGE_TITLES: Record<string, string> = {
   "/": "Dashboard",
   "/tasks": "Tasks & Projects",
   "/notes": "Second Brain",
+  "/finance": "Finance",
   "/agent": "Agent Status & Logs",
   "/settings": "Settings",
 };
@@ -15,6 +16,7 @@ const STANDARD_PAGE_TITLES: Record<string, string> = {
   "/": "Home",
   "/tasks": "Tasks",
   "/notes": "Notes",
+  "/finance": "Finance",
   "/settings": "Settings",
 };
 

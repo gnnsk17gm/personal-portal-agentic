@@ -22,6 +22,13 @@
       "when": 1794398004094,
       "tag": "0002_yellow_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795430647663,
+      "tag": "0003_fluffy_hellcat",
+      "breakpoints": true
     }
   ]
 }

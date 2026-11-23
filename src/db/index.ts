@@ -42,6 +42,7 @@ function openDb(filename: string): AppDb {
   }
 
   const sqlite = new Database(filename);
+  sqlite.pragma('foreign_keys = ON');
   if (filename !== ':memory:') sqlite.pragma('journal_mode = WAL');
   const instance = drizzle(sqlite, { schema });
   migrate(instance, { migrationsFolder: path.join(process.cwd(), 'drizzle') });

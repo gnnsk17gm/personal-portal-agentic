@@ -11,6 +11,7 @@ import {
   ListChecks,
   Settings,
   StickyNote,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { setPortalModeAction } from "@/app/actions";
@@ -28,6 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   StickyNote,
   Brain,
   Bot,
+  Wallet,
   Settings,
 };
 
@@ -35,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/", iconName: "LayoutDashboard" },
   { id: "tasks", label: "Tasks & Projects", href: "/tasks", iconName: "ListChecks" },
   { id: "notes", label: "Second Brain", href: "/notes", iconName: "Brain" },
+  { id: "finance", label: "Finance", href: "/finance", iconName: "Wallet" },
   { id: "agent", label: "Agent Status & Logs", href: "/agent", iconName: "Bot" },
   { id: "settings", label: "Settings", href: "/settings", iconName: "Settings" },
 ];
@@ -43,6 +46,7 @@ const STANDARD_NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", href: "/", iconName: "Home" },
   { id: "tasks", label: "Tasks", href: "/tasks", iconName: "ListChecks" },
   { id: "notes", label: "Notes", href: "/notes", iconName: "StickyNote" },
+  { id: "finance", label: "Finance", href: "/finance", iconName: "Wallet" },
   { id: "settings", label: "Settings", href: "/settings", iconName: "Settings" },
 ];
 
