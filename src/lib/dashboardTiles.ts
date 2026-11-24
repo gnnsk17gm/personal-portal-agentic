@@ -1,4 +1,4 @@
-export type DashboardTileId = 'tasks' | 'notes' | 'schedule' | 'memo_pad';
+export type DashboardTileId = 'tasks' | 'notes' | 'schedule' | 'memo_pad' | 'finance';
 
 export interface DashboardTileDefinition {
   id: DashboardTileId;
@@ -36,6 +36,12 @@ export const TILE_REGISTRY: readonly DashboardTileDefinition[] = [
     description: 'ブラウザに自動保存される自由メモ・伝言板',
     href: '/notes',
   },
+  {
+    id: 'finance',
+    title: 'Finance',
+    description: '今月の支出・予算残り・カテゴリ内訳',
+    href: '/finance',
+  },
 ] as const;
 
 /** 初回（Cookie未設定時）およびリセット時のデフォルト配置 */
@@ -43,6 +49,7 @@ export const DEFAULT_DASHBOARD_TILES: readonly DashboardTileId[] = [
   'tasks',
   'notes',
   'schedule',
+  'finance',
 ] as const;
 
 const VALID_TILE_IDS = new Set<string>(TILE_REGISTRY.map((tile) => tile.id));

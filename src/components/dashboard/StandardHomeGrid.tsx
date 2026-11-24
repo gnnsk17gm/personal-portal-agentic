@@ -1,13 +1,20 @@
-import { Calendar, ListChecks, NotebookPen, StickyNote } from "lucide-react";
+import { Calendar, ListChecks, NotebookPen, StickyNote, Wallet } from "lucide-react";
 import CaptureForm from "@/components/dashboard/CaptureForm";
 import { TileInteractiveArea } from "@/components/dashboard/DashboardTile";
 import EditableTileGrid, {
   type TileSlotItem,
 } from "@/components/dashboard/EditableTileGrid";
+import FinanceTileContent from "@/components/dashboard/FinanceTileContent";
 import QuickScratchpad from "@/components/dashboard/QuickScratchpad";
 import TaskCheckbox from "@/components/dashboard/TaskCheckbox";
 import type { DashboardTileId } from "@/lib/dashboardTiles";
 import { getDashboardTiles } from "@/lib/dashboardTilesServer";
+import {
+  ensureRecurringTransactionsForMonth,
+  getCurrentMonth,
+  getMonthlyFinanceOverview,
+} from "@/lib/finance";
+import { buildFinanceTileSummary } from "@/lib/financeTileSummary";
 import { getRecentCaptures } from "@/services/captureService";
 import { getAllTasks } from "@/services/taskService";
 import type { TaskPreview } from "@/types/portal";
@@ -43,6 +50,15 @@ export default async function StandardHomeGrid() {
   const todayTasks = activeTasks.filter((t) => t.dueDate === todayStr);
 
   const recentNotes = getRecentCaptures(2);
+
+  // 当月固定費のオンデマンド自動計上を実行した上で、ダッシュボード用家計簿サマリーを取得する
+  const currentMonth = getCurrentMonth();
+  ensureRecurringTransactionsForMonth(currentMonth);
+  const financeOverview = getMonthlyFinanceOverview(currentMonth);
+  const financeSummary = buildFinanceTileSummary({
+    summary: financeOverview.summary,
+    categoryBreakdown: financeOverview.categoryBreakdown,
+  });
 
   const tileSlots: Record<DashboardTileId, TileSlotItem> = {
     tasks: {
@@ -166,6 +182,18 @@ export default async function StandardHomeGrid() {
           <QuickScratchpad />
         </TileInteractiveArea>
       ),
+    },
+    finance: {
+      id: "finance",
+      href: "/finance",
+      title: "Finance",
+      icon: <Wallet size={18} className="shrink-0 text-slate-700" aria-hidden="true" />,
+      badge: (
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 tabular-nums">
+          {financeSummary.month}
+        </span>
+      ),
+      content: <FinanceTileContent summary={financeSummary} />,
     },
   };
 

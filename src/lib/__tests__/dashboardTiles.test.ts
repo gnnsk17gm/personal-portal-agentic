@@ -17,20 +17,21 @@ import {
 describe('dashboardTiles', () => {
   it('デフォルト設定とレジストリ定義が仕様どおりである', () => {
     expect(DASHBOARD_TILES_COOKIE).toBe('dashboard_tiles');
-    expect(DEFAULT_DASHBOARD_TILES).toEqual(['tasks', 'notes', 'schedule']);
+    expect(DEFAULT_DASHBOARD_TILES).toEqual(['tasks', 'notes', 'schedule', 'finance']);
     expect(TILE_REGISTRY.map((t) => t.id)).toEqual([
       'tasks',
       'notes',
       'schedule',
       'memo_pad',
+      'finance',
     ]);
   });
 
   describe('parseDashboardTiles', () => {
-    it('未設定（undefined / null / 空文字）はデフォルトの3種を返す', () => {
-      expect(parseDashboardTiles(undefined)).toEqual(['tasks', 'notes', 'schedule']);
-      expect(parseDashboardTiles(null)).toEqual(['tasks', 'notes', 'schedule']);
-      expect(parseDashboardTiles('')).toEqual(['tasks', 'notes', 'schedule']);
+    it('未設定（undefined / null / 空文字）はデフォルトの4種を返す', () => {
+      expect(parseDashboardTiles(undefined)).toEqual(['tasks', 'notes', 'schedule', 'finance']);
+      expect(parseDashboardTiles(null)).toEqual(['tasks', 'notes', 'schedule', 'finance']);
+      expect(parseDashboardTiles('')).toEqual(['tasks', 'notes', 'schedule', 'finance']);
     });
 
     it('有効なJSON配列をそのまま順序どおりに返す', () => {
@@ -39,6 +40,7 @@ describe('dashboardTiles', () => {
         'memo_pad',
         'tasks',
       ]);
+      expect(parseDashboardTiles('["finance","tasks"]')).toEqual(['finance', 'tasks']);
     });
 
     it('明示的に保存された空配列 [] は空のまま返す', () => {
@@ -47,15 +49,15 @@ describe('dashboardTiles', () => {
 
     it('不正なIDや非文字列・重複を安全にフィルタリングする', () => {
       expect(
-        parseDashboardTiles('["tasks","invalid_tile",123,null,"notes","tasks","memo_pad"]'),
-      ).toEqual(['tasks', 'notes', 'memo_pad']);
+        parseDashboardTiles('["tasks","invalid_tile",123,null,"notes","tasks","memo_pad","finance"]'),
+      ).toEqual(['tasks', 'notes', 'memo_pad', 'finance']);
     });
 
     it('壊れたJSONや配列以外のJSONはデフォルトにフォールバックする', () => {
-      expect(parseDashboardTiles('{broken json')).toEqual(['tasks', 'notes', 'schedule']);
-      expect(parseDashboardTiles('{"tasks":true}')).toEqual(['tasks', 'notes', 'schedule']);
-      expect(parseDashboardTiles('"tasks"')).toEqual(['tasks', 'notes', 'schedule']);
-      expect(parseDashboardTiles('123')).toEqual(['tasks', 'notes', 'schedule']);
+      expect(parseDashboardTiles('{broken json')).toEqual(['tasks', 'notes', 'schedule', 'finance']);
+      expect(parseDashboardTiles('{"tasks":true}')).toEqual(['tasks', 'notes', 'schedule', 'finance']);
+      expect(parseDashboardTiles('"tasks"')).toEqual(['tasks', 'notes', 'schedule', 'finance']);
+      expect(parseDashboardTiles('123')).toEqual(['tasks', 'notes', 'schedule', 'finance']);
     });
   });
 
@@ -139,18 +141,29 @@ describe('dashboardTiles', () => {
   });
 
   describe('getAvailableTilesToAdd', () => {
-    it('デフォルト3種配置時は memo_pad のみが追加候補になる', () => {
-      const available = getAvailableTilesToAdd(['tasks', 'notes', 'schedule']);
+    it('デフォルト4種配置時は memo_pad のみが追加候補になる', () => {
+      const available = getAvailableTilesToAdd(['tasks', 'notes', 'schedule', 'finance']);
       expect(available.map((t) => t.id)).toEqual(['memo_pad']);
+    });
+
+    it('既存の3種Cookie保存済みユーザーには memo_pad と finance が追加候補になる', () => {
+      const available = getAvailableTilesToAdd(['tasks', 'notes', 'schedule']);
+      expect(available.map((t) => t.id)).toEqual(['memo_pad', 'finance']);
     });
 
     it('削除したタイルも追加候補に含まれる', () => {
       const available = getAvailableTilesToAdd(['tasks', 'schedule']);
-      expect(available.map((t) => t.id)).toEqual(['notes', 'memo_pad']);
+      expect(available.map((t) => t.id)).toEqual(['notes', 'memo_pad', 'finance']);
     });
 
     it('全タイル配置済みの場合は空配列を返す', () => {
-      const available = getAvailableTilesToAdd(['tasks', 'notes', 'schedule', 'memo_pad']);
+      const available = getAvailableTilesToAdd([
+        'tasks',
+        'notes',
+        'schedule',
+        'memo_pad',
+        'finance',
+      ]);
       expect(available).toEqual([]);
     });
   });
