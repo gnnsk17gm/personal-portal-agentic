@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import AmexCsvImportModal from "@/components/finance/AmexCsvImportModal";
 import CategoryBreakdown from "@/components/finance/CategoryBreakdown";
 import FinanceSummaryCards from "@/components/finance/FinanceSummaryCards";
 import QuickTransactionForm from "@/components/finance/QuickTransactionForm";
@@ -90,6 +91,9 @@ export default async function FinancePage({
 
           {/* 固定費・サブスク管理モーダルボタン */}
           <RecurringExpenseManager items={overview.recurringList} />
+
+          {/* AMEX 利用明細 CSV インポートボタン */}
+          <AmexCsvImportModal currentMonth={month} />
         </div>
       </div>
 

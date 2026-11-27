@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type AppDb } from '@/db';
 import {
+  bulkCreateTransactions,
   calculateCategoryBreakdown,
   calculateMonthlySummary,
+  classifyAmexImportRows,
   createRecurringExpense,
   createTransaction,
   deleteRecurringExpense,
@@ -337,6 +339,95 @@ describe('finance domain logic', () => {
     it('年またぎの前月・次月を正しく計算できる', () => {
       expect(shiftMonth('2026-01', -1)).toBe('2025-12');
       expect(shiftMonth('2026-12', 1)).toBe('2027-01');
+    });
+  });
+
+  describe('AMEX CSV インポート（重複判定・履歴学習・一括登録）', () => {
+    it('同一日・同額・同店名の重複をカウントベースで判定し、2回目以降は新規扱いする', () => {
+      // DB に 1 件だけ登録済み
+      createTransaction(
+        {
+          type: 'expense',
+          amount: 540,
+          category: '食費',
+          date: '2026-11-20',
+          note: 'セブンイレブン 渋谷店',
+        },
+        db,
+      );
+
+      // CSV 内に同じ内容が 2 行＋マイナス行が 1 行
+      const classified = classifyAmexImportRows(
+        [
+          { rowIndex: 1, date: '2026-11-20', note: 'セブンイレブン　渋谷店', amount: 540 },
+          { rowIndex: 2, date: '2026-11-20', note: 'セブンイレブン 渋谷店', amount: 540 },
+          { rowIndex: 3, date: '2026-11-10', note: '口座振替によるお支払い', amount: -30000 },
+        ],
+        db,
+      );
+
+      expect(classified[0]).toMatchObject({ status: 'duplicate', selected: false });
+      expect(classified[1]).toMatchObject({ status: 'new', selected: true });
+      expect(classified[2]).toMatchObject({ status: 'negative', selected: false });
+    });
+
+    it('過去に登録した同一加盟店名の最直近カテゴリを優先的に自動選択する', () => {
+      // 古い履歴は日用品、新しい履歴は趣味・娯楽
+      createTransaction(
+        { type: 'expense', amount: 1200, category: '日用品', date: '2026-10-01', note: 'Amazon.co.jp' },
+        db,
+      );
+      createTransaction(
+        { type: 'expense', amount: 2500, category: '趣味・娯楽', date: '2026-11-05', note: 'Amazon.co.jp' },
+        db,
+      );
+
+      const classified = classifyAmexImportRows(
+        [
+          { rowIndex: 1, date: '2026-11-21', note: 'Ａｍａｚｏｎ．ｃｏ．ｊｐ', amount: 1980 },
+          { rowIndex: 2, date: '2026-11-22', note: 'ローソン 新宿店', amount: 320 },
+        ],
+        db,
+      );
+
+      expect(classified[0]).toMatchObject({
+        category: '趣味・娯楽',
+        categorySource: 'history',
+        status: 'new',
+        selected: true,
+      });
+      expect(classified[1]).toMatchObject({
+        category: '食費',
+        categorySource: 'keyword',
+        status: 'new',
+        selected: true,
+      });
+    });
+
+    it('bulkCreateTransactions で複数件を一括永続化し、不正データ時は全件ロールバックする', () => {
+      const inserted = bulkCreateTransactions(
+        [
+          { date: '2026-11-20', amount: 1308, category: '趣味・娯楽', note: 'Apple iTunes Store' },
+          { date: '2026-11-21', amount: 540, category: '食費', note: 'セブンイレブン' },
+        ],
+        db,
+      );
+      expect(inserted).toHaveLength(2);
+      expect(listTransactionsByMonth('2026-11', db)).toHaveLength(2);
+      expect(inserted[0].recurringId).toBeNull();
+      expect(inserted[0].billingMonth).toBeNull();
+
+      // 2行目に不正な金額（0以下）を含めると例外になり、1行目も登録されない
+      expect(() =>
+        bulkCreateTransactions(
+          [
+            { date: '2026-12-01', amount: 1000, category: '食費', note: '正常行' },
+            { date: '2026-12-02', amount: -500, category: '食費', note: '不正行' },
+          ],
+          db,
+        ),
+      ).toThrow();
+      expect(listTransactionsByMonth('2026-12', db)).toHaveLength(0);
     });
   });
 });

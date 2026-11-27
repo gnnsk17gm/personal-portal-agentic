@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import {
+  bulkCreateTransactions,
+  classifyAmexImportRows,
   createRecurringExpense,
   createTransaction,
   deleteRecurringExpense,
@@ -10,6 +12,8 @@ import {
   updateRecurringExpense,
   updateTransaction,
   upsertMonthlyBudget,
+  type BulkCreateTransactionItem,
+  type ClassifiedAmexRow,
 } from '@/lib/finance';
 import { isValidTransactionType, type TransactionType } from '@/lib/finance-constants';
 
@@ -219,4 +223,110 @@ export async function deleteRecurringExpenseAction(id: number): Promise<FinanceA
 
   revalidateFinance();
   return { ok: true, error: null };
+}
+
+export interface PreviewAmexCsvResult {
+  ok: boolean;
+  rows: ClassifiedAmexRow[];
+  error: string | null;
+}
+
+export interface ImportAmexTransactionsResult {
+  ok: boolean;
+  insertedCount: number;
+  months: string[];
+  error: string | null;
+}
+
+interface RawPreviewRow {
+  rowIndex: number;
+  date: string;
+  note: string;
+  amount: number;
+}
+
+function isRawPreviewRow(value: unknown): value is RawPreviewRow {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.rowIndex === 'number' &&
+    Number.isInteger(obj.rowIndex) &&
+    typeof obj.date === 'string' &&
+    typeof obj.note === 'string' &&
+    typeof obj.amount === 'number' &&
+    Number.isSafeInteger(obj.amount)
+  );
+}
+
+function isBulkCreateItem(value: unknown): value is BulkCreateTransactionItem {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.date === 'string' &&
+    typeof obj.amount === 'number' &&
+    Number.isSafeInteger(obj.amount) &&
+    typeof obj.category === 'string' &&
+    typeof obj.note === 'string'
+  );
+}
+
+export async function previewAmexCsvAction(
+  rawRows: unknown,
+): Promise<PreviewAmexCsvResult> {
+  if (!Array.isArray(rawRows) || !rawRows.every(isRawPreviewRow)) {
+    return { ok: false, rows: [], error: 'プレビューデータの形式が不正です' };
+  }
+
+  try {
+    const classified = classifyAmexImportRows(rawRows);
+    return { ok: true, rows: classified, error: null };
+  } catch (e) {
+    return {
+      ok: false,
+      rows: [],
+      error: e instanceof Error ? e.message : 'プレビューの生成に失敗しました',
+    };
+  }
+}
+
+export async function importAmexTransactionsAction(
+  rawItems: unknown,
+): Promise<ImportAmexTransactionsResult> {
+  if (!Array.isArray(rawItems) || !rawItems.every(isBulkCreateItem)) {
+    return {
+      ok: false,
+      insertedCount: 0,
+      months: [],
+      error: '登録データの形式が不正です',
+    };
+  }
+
+  if (rawItems.length === 0) {
+    return {
+      ok: false,
+      insertedCount: 0,
+      months: [],
+      error: '取り込む明細を1件以上選択してください',
+    };
+  }
+
+  try {
+    const inserted = bulkCreateTransactions(rawItems);
+    const months = Array.from(new Set(inserted.map((tx) => tx.date.slice(0, 7)))).sort();
+    revalidateFinance();
+    revalidatePath('/');
+    return {
+      ok: true,
+      insertedCount: inserted.length,
+      months,
+      error: null,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      insertedCount: 0,
+      months: [],
+      error: e instanceof Error ? e.message : '一括登録に失敗しました',
+    };
+  }
 }

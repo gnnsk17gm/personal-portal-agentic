@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, lt } from 'drizzle-orm';
 import { getDb, type AppDb } from '@/db';
 import {
   financeTransactions,
@@ -6,6 +6,11 @@ import {
   recurringExpenses,
   recurringGenerations,
 } from '@/db/schema';
+import {
+  inferExpenseCategory,
+  normalizeMerchantNote,
+  type ParsedAmexRow,
+} from '@/lib/amexCsvParser';
 import {
   MAX_DAY_OF_MONTH,
   MAX_FINANCE_AMOUNT,
@@ -15,6 +20,7 @@ import {
   MIN_TRANSACTION_AMOUNT,
   isValidCategoryForType,
   isValidTransactionType,
+  type ExpenseCategory,
   type TransactionType,
 } from '@/lib/finance-constants';
 
@@ -662,4 +668,208 @@ export function hasRecurringGenerationRecord(
     )
     .get();
   return Boolean(row);
+}
+
+// ---------------------------------------------------------------------------
+// AMEX CSV インポート用ヘルパー（重複判定・過去履歴学習・一括トランザクション登録）
+// ---------------------------------------------------------------------------
+
+export type AmexImportRowStatus = 'new' | 'duplicate' | 'negative';
+
+export interface ClassifiedAmexRow {
+  rowIndex: number;
+  date: string;
+  note: string;
+  amount: number;
+  category: ExpenseCategory;
+  categorySource: 'history' | 'keyword' | 'default';
+  status: AmexImportRowStatus;
+  selected: boolean;
+}
+
+export interface BulkCreateTransactionItem {
+  date: string;
+  amount: number;
+  category: string;
+  note: string;
+}
+
+export function buildDuplicateKey(date: string, amount: number, normalizedNote: string): string {
+  return `${date}\u0000${amount}\u0000${normalizedNote}`;
+}
+
+/**
+ * 指定日付群の既存支出明細について、(date, amount, 正規化済みnote) ごとの登録件数を返す。
+ */
+export function findExistingTransactionKeyCounts(
+  dates: readonly string[],
+  db: AppDb = getDb(),
+): Map<string, number> {
+  const uniqueDates = Array.from(new Set(dates.filter((d) => isValidDate(d))));
+  const counts = new Map<string, number>();
+  if (uniqueDates.length === 0) return counts;
+
+  const existingRows = db
+    .select({
+      date: financeTransactions.date,
+      amount: financeTransactions.amount,
+      note: financeTransactions.note,
+    })
+    .from(financeTransactions)
+    .where(
+      and(
+        eq(financeTransactions.type, 'expense'),
+        inArray(financeTransactions.date, uniqueDates),
+      ),
+    )
+    .all();
+
+  for (const row of existingRows) {
+    const key = buildDuplicateKey(row.date, row.amount, normalizeMerchantNote(row.note));
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * 既存の支出明細から、正規化済みメモごとの最直近カテゴリ（date DESC, id DESC）を取得する。
+ */
+export function getLatestExpenseCategoriesByNote(
+  normalizedNotes: readonly string[],
+  db: AppDb = getDb(),
+): Map<string, ExpenseCategory> {
+  const targetNotes = new Set(normalizedNotes.filter((n) => n.length > 0));
+  const result = new Map<string, ExpenseCategory>();
+  if (targetNotes.size === 0) return result;
+
+  const rows = db
+    .select({
+      note: financeTransactions.note,
+      category: financeTransactions.category,
+    })
+    .from(financeTransactions)
+    .where(eq(financeTransactions.type, 'expense'))
+    .orderBy(desc(financeTransactions.date), desc(financeTransactions.id))
+    .all();
+
+  for (const row of rows) {
+    const normalized = normalizeMerchantNote(row.note);
+    if (!targetNotes.has(normalized) || result.has(normalized)) {
+      continue;
+    }
+    if (isValidCategoryForType('expense', row.category)) {
+      result.set(normalized, row.category as ExpenseCategory);
+    }
+    if (result.size === targetNotes.size) {
+      break;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * パース済み AMEX 明細行に対し、DB 照合に基づく重複判定（カウントベース）・マイナス除外判定・
+ * カテゴリ推測（過去履歴優先 → キーワード辞書 → その他）を行う。
+ */
+export function classifyAmexImportRows(
+  rows: readonly Pick<ParsedAmexRow, 'rowIndex' | 'date' | 'note' | 'amount'>[],
+  db: AppDb = getDb(),
+): ClassifiedAmexRow[] {
+  const positiveRows = rows.filter((r) => r.amount > 0);
+  const existingCounts = findExistingTransactionKeyCounts(
+    positiveRows.map((r) => r.date),
+    db,
+  );
+  const historyMap = getLatestExpenseCategoriesByNote(
+    rows.map((r) => normalizeMerchantNote(r.note)),
+    db,
+  );
+
+  return rows.map((row) => {
+    const normalizedNote = normalizeMerchantNote(row.note);
+    const inferred = inferExpenseCategory(normalizedNote, historyMap);
+
+    if (row.amount <= 0) {
+      return {
+        rowIndex: row.rowIndex,
+        date: row.date,
+        note: normalizedNote,
+        amount: row.amount,
+        category: inferred.category,
+        categorySource: inferred.source,
+        status: 'negative',
+        selected: false,
+      };
+    }
+
+    const key = buildDuplicateKey(row.date, row.amount, normalizedNote);
+    const remainingDupCount = existingCounts.get(key) ?? 0;
+    if (remainingDupCount > 0) {
+      existingCounts.set(key, remainingDupCount - 1);
+      return {
+        rowIndex: row.rowIndex,
+        date: row.date,
+        note: normalizedNote,
+        amount: row.amount,
+        category: inferred.category,
+        categorySource: inferred.source,
+        status: 'duplicate',
+        selected: false,
+      };
+    }
+
+    return {
+      rowIndex: row.rowIndex,
+      date: row.date,
+      note: normalizedNote,
+      amount: row.amount,
+      category: inferred.category,
+      categorySource: inferred.source,
+      status: 'new',
+      selected: true,
+    };
+  });
+}
+
+/**
+ * 複数の支出明細を SQLite トランザクション内で一括登録する。
+ * 1 件でもバリデーションエラーがある場合は全件ロールバックする。
+ */
+export function bulkCreateTransactions(
+  items: readonly BulkCreateTransactionItem[],
+  db: AppDb = getDb(),
+): FinanceTransactionRecord[] {
+  if (items.length === 0) return [];
+
+  const createdAt = new Date().toISOString();
+  const validated = items.map((item, idx) => {
+    const amount = validateAmount(item.amount, MIN_TRANSACTION_AMOUNT);
+    if (!isValidCategoryForType('expense', item.category)) {
+      throw new Error(`${idx + 1}行目のカテゴリが不正です`);
+    }
+    if (!isValidDate(item.date)) {
+      throw new Error(`${idx + 1}行目の日付形式が不正です（YYYY-MM-DD）`);
+    }
+    const note = validateNote(item.note);
+    return {
+      type: 'expense' as const,
+      amount,
+      category: item.category,
+      date: item.date,
+      note,
+      recurringId: null,
+      billingMonth: null,
+      createdAt,
+    };
+  });
+
+  return db.transaction((tx) => {
+    const inserted: FinanceTransactionRecord[] = [];
+    for (const row of validated) {
+      const record = tx.insert(financeTransactions).values(row).returning().get();
+      inserted.push(record);
+    }
+    return inserted;
+  });
 }
